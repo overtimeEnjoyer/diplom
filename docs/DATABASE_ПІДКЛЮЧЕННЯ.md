@@ -80,6 +80,11 @@ pnpm develop
 | Що хочеш              | Дія |
 |-----------------------|-----|
 | Спокійно кодити локально | Встанови Postgres на комп, створи базу `strapi`, в `.env` постав `DATABASE_URL=postgresql://...@127.0.0.1:5432/strapi`. |
-| Деплой на Render      | На сервері (Render) в змінних оточення залишай **звичайний** Render Database URL з Dashboard. |
+| Деплой на Render      | У Web Service → Environment вкажи **Internal Database URL** (не External) у `DATABASE_URL`. |
+
+### Важливо для Render (деплой)
+
+- У **Web Service** → **Environment** для `DATABASE_URL` бери **Internal Database URL** з інфо PostgreSQL (не External). Internal працює по внутрішній мережі Render і стабільніший.
+- В коді вже додано `sslmode=require&uselibpqcompat=true` для хмарного Postgres.
 
 Можна мати в `.env` локальний URL для розробки, а в `.env.production` або в налаштуваннях деплою — URL з Render для продакшену.

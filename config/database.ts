@@ -21,7 +21,6 @@ export default ({ env }) => {
   // PostgreSQL
   let connectionString = env('DATABASE_URL');
   if (!connectionString) {
-    // Збираємо URL з окремих змінних (DATABASE_HOST, PORT, NAME, USERNAME, PASSWORD)
     const host = env('DATABASE_HOST', 'localhost');
     const port = env.int('DATABASE_PORT', 5432);
     const db = env('DATABASE_NAME', 'strapi');
@@ -30,19 +29,21 @@ export default ({ env }) => {
     connectionString = `postgresql://${user}:${encodeURIComponent(pass)}@${host}:${port}/${db}`;
   }
   const isRemote = connectionString && !connectionString.includes('localhost');
-  if (isRemote && !connectionString.includes('sslmode=')) {
-    connectionString += connectionString.includes('?') ? '&sslmode=require' : '?sslmode=require';
-  }
+
+  // Для Render/хмарного Postgres: приймаємо self-signed сертифікат (rejectUnauthorized: false)
+  const pgConnection = isRemote
+    ? {
+        connectionString,
+        ssl: { rejectUnauthorized: false },
+      }
+    : { connectionString };
 
   return {
     connection: {
       client: 'postgres',
-      connection: {
-        connectionString,
-        ...(isRemote && { ssl: { rejectUnauthorized: false } }),
-      },
+      connection: pgConnection,
       pool: { min: 0, max: 10 },
-      acquireConnectionTimeout: 60000,
+      acquireConnectionTimeout: 90000,
     },
   };
 };
