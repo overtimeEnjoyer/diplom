@@ -3,58 +3,46 @@ import path from 'path';
 export default ({ env }) => {
   const client = env('DATABASE_CLIENT', 'sqlite');
 
-  const connections = {
-    mysql: {
+  if (client === 'sqlite') {
+    const filename = path.join(process.cwd(), env('DATABASE_FILENAME', '.tmp/data.db'));
+    return {
       connection: {
-        host: env('DATABASE_HOST', 'localhost'),
-        port: env.int('DATABASE_PORT', 3306),
-        database: env('DATABASE_NAME', 'strapi'),
-        user: env('DATABASE_USERNAME', 'strapi'),
-        password: env('DATABASE_PASSWORD', 'strapi'),
-        ssl: env.bool('DATABASE_SSL', false) && {
-          key: env('DATABASE_SSL_KEY', undefined),
-          cert: env('DATABASE_SSL_CERT', undefined),
-          ca: env('DATABASE_SSL_CA', undefined),
-          capath: env('DATABASE_SSL_CAPATH', undefined),
-          cipher: env('DATABASE_SSL_CIPHER', undefined),
-          rejectUnauthorized: env.bool('DATABASE_SSL_REJECT_UNAUTHORIZED', true),
+        client: 'sqlite',
+        connection: {
+          filename,
+          // Явно відкривати з правами на запис (уникаємо SQLITE_READONLY на деяких системах)
+          readonly: false,
         },
+        useNullAsDefault: true,
       },
-      pool: { min: env.int('DATABASE_POOL_MIN', 2), max: env.int('DATABASE_POOL_MAX', 10) },
-    },
-    postgres: {
-      connection: {
-        connectionString: env('DATABASE_URL'),
-        host: env('DATABASE_HOST', 'localhost'),
-        port: env.int('DATABASE_PORT', 5432),
-        database: env('DATABASE_NAME', 'strapi'),
-        user: env('DATABASE_USERNAME', 'strapi'),
-        password: env('DATABASE_PASSWORD', 'strapi'),
-        ssl: env.bool('DATABASE_SSL', false) && {
-          key: env('DATABASE_SSL_KEY', undefined),
-          cert: env('DATABASE_SSL_CERT', undefined),
-          ca: env('DATABASE_SSL_CA', undefined),
-          capath: env('DATABASE_SSL_CAPATH', undefined),
-          cipher: env('DATABASE_SSL_CIPHER', undefined),
-          rejectUnauthorized: env.bool('DATABASE_SSL_REJECT_UNAUTHORIZED', true),
-        },
-        schema: env('DATABASE_SCHEMA', 'public'),
-      },
-      pool: { min: env.int('DATABASE_POOL_MIN', 2), max: env.int('DATABASE_POOL_MAX', 10) },
-    },
-    sqlite: {
-      connection: {
-        filename: path.join(__dirname, '..', '..', env('DATABASE_FILENAME', '.tmp/data.db')),
-      },
-      useNullAsDefault: true,
-    },
-  };
+    };
+  }
+
+  // PostgreSQL
+  let connectionString = env('DATABASE_URL');
+  if (!connectionString) {
+    // Збираємо URL з окремих змінних (DATABASE_HOST, PORT, NAME, USERNAME, PASSWORD)
+    const host = env('DATABASE_HOST', 'localhost');
+    const port = env.int('DATABASE_PORT', 5432);
+    const db = env('DATABASE_NAME', 'strapi');
+    const user = env('DATABASE_USERNAME', 'postgres');
+    const pass = env('DATABASE_PASSWORD', '');
+    connectionString = `postgresql://${user}:${encodeURIComponent(pass)}@${host}:${port}/${db}`;
+  }
+  const isRemote = connectionString && !connectionString.includes('localhost');
+  if (isRemote && !connectionString.includes('sslmode=')) {
+    connectionString += connectionString.includes('?') ? '&sslmode=require' : '?sslmode=require';
+  }
 
   return {
     connection: {
-      client,
-      ...connections[client],
-      acquireConnectionTimeout: env.int('DATABASE_CONNECTION_TIMEOUT', 60000),
+      client: 'postgres',
+      connection: {
+        connectionString,
+        ...(isRemote && { ssl: { rejectUnauthorized: false } }),
+      },
+      pool: { min: 0, max: 10 },
+      acquireConnectionTimeout: 60000,
     },
   };
 };
