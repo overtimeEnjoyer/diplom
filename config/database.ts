@@ -1,16 +1,30 @@
 import path from 'path';
 
-export default ({ env }) => {
+/**
+ * Database config — Strapi 5 official structure.
+ * @see https://docs.strapi.io/dev-docs/configurations/database
+ *
+ * PostgreSQL (Render):
+ *   DATABASE_CLIENT=postgres
+ *   DATABASE_URL=<Internal Database URL з Render>
+ *   DATABASE_SSL=true
+ *   DATABASE_SSL_REJECT_UNAUTHORIZED=false   // для self-signed сертифікатів Render
+ *   DATABASE_POOL_MIN=0                      // рекомендовано для Docker/Render
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default ({ env }: { env: any }) => {
   const client = env('DATABASE_CLIENT', 'sqlite');
 
   if (client === 'sqlite') {
-    const filename = path.join(process.cwd(), env('DATABASE_FILENAME', '.tmp/data.db'));
+    const filename = path.join(
+      process.cwd(),
+      (env('DATABASE_FILENAME', '.tmp/data.db') as string)
+    );
     return {
       connection: {
         client: 'sqlite',
         connection: {
           filename,
-          // Явно відкривати з правами на запис (уникаємо SQLITE_READONLY на деяких системах)
           readonly: false,
         },
         useNullAsDefault: true,
@@ -18,32 +32,38 @@ export default ({ env }) => {
     };
   }
 
-  // PostgreSQL
-  let connectionString = env('DATABASE_URL');
-  if (!connectionString) {
-    const host = env('DATABASE_HOST', 'localhost');
-    const port = env.int('DATABASE_PORT', 5432);
-    const db = env('DATABASE_NAME', 'strapi');
-    const user = env('DATABASE_USERNAME', 'postgres');
-    const pass = env('DATABASE_PASSWORD', '');
-    connectionString = `postgresql://${user}:${encodeURIComponent(pass)}@${host}:${port}/${db}`;
-  }
-  const isRemote = connectionString && !connectionString.includes('localhost');
+  // PostgreSQL — офіційний варіант з docs (connectionString + ssl з env)
+  const connectionString = (env('DATABASE_URL', '') as string).trim();
+  const useSsl = env.bool('DATABASE_SSL', false);
+  const sslRejectUnauthorized = env.bool('DATABASE_SSL_REJECT_UNAUTHORIZED', true);
 
-  // Для Render/хмарного Postgres: приймаємо self-signed сертифікат (rejectUnauthorized: false)
-  const pgConnection = isRemote
-    ? {
-        connectionString,
-        ssl: { rejectUnauthorized: false },
-      }
-    : { connectionString };
+  const pgConnection: Record<string, unknown> = {
+    host: env('DATABASE_HOST', '127.0.0.1'),
+    port: env.int('DATABASE_PORT', 5432),
+    database: env('DATABASE_NAME', 'strapi'),
+    user: env('DATABASE_USERNAME', 'strapi'),
+    password: env('DATABASE_PASSWORD', 'strapi'),
+    schema: env('DATABASE_SCHEMA', 'public'),
+  };
+
+  if (connectionString) {
+    pgConnection.connectionString = connectionString;
+  }
+
+  // SSL: для Render (self-signed) встанови DATABASE_SSL=true, DATABASE_SSL_REJECT_UNAUTHORIZED=false
+  if (useSsl) {
+    pgConnection.ssl = { rejectUnauthorized: sslRejectUnauthorized };
+  }
 
   return {
     connection: {
       client: 'postgres',
       connection: pgConnection,
-      pool: { min: 0, max: 10 },
-      acquireConnectionTimeout: 90000,
+      pool: {
+        min: env.int('DATABASE_POOL_MIN', 2),
+        max: env.int('DATABASE_POOL_MAX', 10),
+      },
+      acquireConnectionTimeout: env.int('DATABASE_CONNECTION_TIMEOUT', 60000),
     },
   };
 };

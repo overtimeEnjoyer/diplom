@@ -68,8 +68,8 @@ pnpm develop
 
 1. Зайди в **Render Dashboard** → твій **PostgreSQL** сервіс.
 2. Переконайся, що він у статусі **Available** (не Paused).
-3. В **Info** скопіюй **External Database URL** — іноді там вже є `?sslmode=require`. Якщо ні — вручну допиши в кінець: `?sslmode=require`.
-4. Цей URL встав у `.env` як `DATABASE_URL`, збережи і знову запусти `pnpm develop`.
+3. В **Info** скопіюй **Internal Database URL** (або External) і в `.env` задай: `DATABASE_CLIENT=postgres`, `DATABASE_URL=<URL>`, `DATABASE_SSL=true`, `DATABASE_SSL_REJECT_UNAUTHORIZED=false`.
+4. Збережи і запусти `pnpm develop`.
 
 Якщо помилка повторюється — часто це саме через “засипання” або нестабільне з’єднання з Render; для щоденної розробки надійніше використовувати **варіант 1** (локальний PostgreSQL).
 
@@ -84,7 +84,17 @@ pnpm develop
 
 ### Важливо для Render (деплой)
 
-- У **Web Service** → **Environment** для `DATABASE_URL` бери **Internal Database URL** з інфо PostgreSQL (не External). Internal працює по внутрішній мережі Render і стабільніший.
-- В коді вже додано `sslmode=require&uselibpqcompat=true` для хмарного Postgres.
+Конфіг бази зроблено за [офіційною документацією Strapi](https://docs.strapi.io/dev-docs/configurations/database). У **Web Service** → **Environment** на Render задай:
 
-Можна мати в `.env` локальний URL для розробки, а в `.env.production` або в налаштуваннях деплою — URL з Render для продакшену.
+| Змінна | Значення |
+|--------|----------|
+| `DATABASE_CLIENT` | `postgres` |
+| `DATABASE_URL` | **Internal Database URL** з інфо PostgreSQL (не External) |
+| `DATABASE_SSL` | `true` |
+| `DATABASE_SSL_REJECT_UNAUTHORIZED` | `false` (для self-signed сертифікатів Render) |
+| `DATABASE_POOL_MIN` | `0` (рекомендовано для Docker/Render, щоб не тримати idle-з’єднання) |
+
+- **Internal Database URL** стабільніший, бо йде по внутрішній мережі Render.
+- Без `DATABASE_SSL=true` і `DATABASE_SSL_REJECT_UNAUTHORIZED=false` можлива помилка про self-signed certificate.
+
+Локально в `.env` можна мати SQLite або локальний Postgres; для продакшену в Render — тільки ці змінні вище.
