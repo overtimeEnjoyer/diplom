@@ -32,27 +32,53 @@ export default ({ env }: { env: any }) => {
     };
   }
 
-  // PostgreSQL — офіційний варіант з docs (connectionString + ssl з env)
+  // PostgreSQL — офіційний варіант Strapi + обхід self-signed для Render
   const connectionString = (env('DATABASE_URL', '') as string).trim();
   const useSsl = env.bool('DATABASE_SSL', false);
   const sslRejectUnauthorized = env.bool('DATABASE_SSL_REJECT_UNAUTHORIZED', true);
 
-  const pgConnection: Record<string, unknown> = {
-    host: env('DATABASE_HOST', '127.0.0.1'),
-    port: env.int('DATABASE_PORT', 5432),
-    database: env('DATABASE_NAME', 'strapi'),
-    user: env('DATABASE_USERNAME', 'strapi'),
-    password: env('DATABASE_PASSWORD', 'strapi'),
-    schema: env('DATABASE_SCHEMA', 'public'),
-  };
+  let pgConnection: Record<string, unknown>;
 
-  if (connectionString) {
-    pgConnection.connectionString = connectionString;
-  }
+  // Якщо є URL і потрібен SSL без перевірки сертифіката (Render self-signed), НЕ передаємо
+  // connectionString: pg парсить з URL sslmode=require як verify-full і ігнорує rejectUnauthorized.
+  // Тому передаємо тільки host/port/database/user/password + ssl.
+  const needExplicitSslForRender =
+    connectionString && useSsl && !sslRejectUnauthorized;
 
-  // SSL: для Render (self-signed) встанови DATABASE_SSL=true, DATABASE_SSL_REJECT_UNAUTHORIZED=false
-  if (useSsl) {
-    pgConnection.ssl = { rejectUnauthorized: sslRejectUnauthorized };
+  if (needExplicitSslForRender) {
+    try {
+      const url = new URL(connectionString);
+      pgConnection = {
+        host: url.hostname,
+        port: parseInt(url.port || '5432', 10),
+        database: (url.pathname || '/').replace(/^\//, '') || 'strapi',
+        user: decodeURIComponent(url.username || ''),
+        password: decodeURIComponent(url.password || ''),
+        schema: env('DATABASE_SCHEMA', 'public'),
+        ssl: { rejectUnauthorized: false },
+      };
+    } catch {
+      pgConnection = {
+        connectionString,
+        schema: env('DATABASE_SCHEMA', 'public'),
+        ssl: { rejectUnauthorized: false },
+      };
+    }
+  } else {
+    pgConnection = {
+      host: env('DATABASE_HOST', '127.0.0.1'),
+      port: env.int('DATABASE_PORT', 5432),
+      database: env('DATABASE_NAME', 'strapi'),
+      user: env('DATABASE_USERNAME', 'strapi'),
+      password: env('DATABASE_PASSWORD', 'strapi'),
+      schema: env('DATABASE_SCHEMA', 'public'),
+    };
+    if (connectionString) {
+      pgConnection.connectionString = connectionString;
+    }
+    if (useSsl) {
+      pgConnection.ssl = { rejectUnauthorized: sslRejectUnauthorized };
+    }
   }
 
   return {
