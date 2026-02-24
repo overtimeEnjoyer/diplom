@@ -14,7 +14,7 @@ function hashCode(code: string) {
 }
 
 export default {
-  /** 1. Register: create user (confirmed=false), send email with code. No JWT. */
+  /** 1. Register: create user (confirmed=true), no email. Return JWT immediately. */
   async register(ctx) {
     const { email, username, password } = ctx.request.body;
 
@@ -45,8 +45,6 @@ export default {
       return ctx.internalServerError('Default role not found');
     }
 
-    const code = generateCode();
-    const hashedCode = hashCode(code);
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await strapi.query('plugin::users-permissions.user').create({
@@ -55,21 +53,23 @@ export default {
         email,
         password: hashedPassword,
         provider: 'local',
-        confirmed: false,
+        confirmed: true,
         blocked: false,
         role: defaultRole.id,
-        emailConfirmationCode: hashedCode,
-        emailConfirmationExpires: new Date(Date.now() + CODE_TTL_MS),
       },
     });
 
-    await strapi.plugin('email').service('email').send({
-      to: email,
-      subject: 'Your confirmation code',
-      text: `Your confirmation code is: ${code}`,
-    });
-
-    return ctx.send({ ok: true, message: 'Check your email for the confirmation code' });
+    const jwt = strapi.plugin('users-permissions').service('jwt').issue({ id: user.id });
+    const sanitizedUser = {
+      id: user.id,
+      documentId: user.documentId,
+      username: user.username,
+      email: user.email,
+      confirmed: true,
+      blocked: user.blocked,
+      provider: user.provider,
+    };
+    return ctx.send({ jwt, user: sanitizedUser });
   },
 
   /** 2. Request email code (existing flow). */
@@ -99,12 +99,15 @@ export default {
       },
     });
 
-    await strapi.plugin('email').service('email').send({
-      to: email,
-      subject: 'Your confirmation code',
-      text: `Your confirmation code is: ${code}`,
-    });
-
+    try {
+      await strapi.plugin('email').service('email').send({
+        to: email,
+        subject: 'Your confirmation code',
+        text: `Your confirmation code is: ${code}`,
+      });
+    } catch (err) {
+      strapi.log.warn('RequestEmailCode: email send failed', { email, err });
+    }
     return ctx.send({ ok: true });
   },
 
@@ -188,12 +191,15 @@ export default {
       },
     });
 
-    await strapi.plugin('email').service('email').send({
-      to: email,
-      subject: 'Password reset code',
-      text: `Your password reset code is: ${code}`,
-    });
-
+    try {
+      await strapi.plugin('email').service('email').send({
+        to: email,
+        subject: 'Password reset code',
+        text: `Your password reset code is: ${code}`,
+      });
+    } catch (err) {
+      strapi.log.warn('RequestPasswordCode: email send failed', { email, err });
+    }
     return ctx.send({ ok: true });
   },
 

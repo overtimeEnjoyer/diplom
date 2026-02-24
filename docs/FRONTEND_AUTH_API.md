@@ -57,10 +57,10 @@ if (!res.ok) {
   // data.error?.message або data.message — текст помилки
   throw new Error(data.error?.message || data.message || 'Request failed');
 }
-// успіх: data.ok, data.message тощо
+// успіх: data.jwt, data.user (реєстрація) або data.ok (інші)
 ```
 
-Після логіну або verify-code зберігай `data.jwt` і для захищених запитів додавай заголовок:
+Після реєстрації, логіну або verify-code зберігай `data.jwt` і для захищених запитів додавай заголовок:
 
 ```ts
 headers: {
@@ -78,7 +78,7 @@ headers: {
 
 ---
 
-## 1. Реєстрація (без JWT)
+## 1. Реєстрація (одразу повертає JWT)
 
 **POST** `/api/auth/register`
 
@@ -91,37 +91,7 @@ headers: {
 }
 ```
 
-**Валідація:** username ≥ 3 символи, password ≥ 6 символів.
-
-**Успіх (200):**
-```json
-{
-  "ok": true,
-  "message": "Check your email for the confirmation code"
-}
-```
-
-**Помилки (400):**  
-- "Email, username and password are required"  
-- "User with this email or username already exists"  
-- "Username must be at least 3 characters"  
-- "Password must be at least 6 characters"
-
-Після успіху — показати екран «Введіть код з email» і викликати **verify-code**.
-
----
-
-## 2. Підтвердження email (код з листа) → отримати JWT
-
-**POST** `/api/auth/email/verify-code`
-
-**Body:**
-```json
-{
-  "email": "user@example.com",
-  "code": "123456"
-}
-```
+**Валідація:** username ≥ 3 символи, password ≥ 6 символів. Підтвердження email не потрібне.
 
 **Успіх (200):**
 ```json
@@ -139,40 +109,17 @@ headers: {
 }
 ```
 
-**Що робити:** зберегти `jwt` (наприклад в localStorage / cookie) і використовувати в заголовку для захищених запитів:
-```
-Authorization: Bearer <jwt>
-```
+**Що робити:** зберегти `jwt` і вважати користувача залогіненим (редирект у додаток тощо).
 
 **Помилки (400):**  
-- "Email and code are required"  
-- "Invalid email or code"  
-- "No pending confirmation for this email"  
-- "Code expired"  
-- "Invalid code"
-
-Код дійсний **10 хвилин**.
+- "Email, username and password are required"  
+- "User with this email or username already exists"  
+- "Username must be at least 3 characters"  
+- "Password must be at least 6 characters"
 
 ---
 
-## 3. Запит коду на email (для підтвердження / повторна відправка)
-
-**POST** `/api/auth/email/request-code`
-
-**Body:**
-```json
-{
-  "email": "user@example.com"
-}
-```
-
-**Успіх (200):** завжди `{ "ok": true }` (навіть якщо email не знайдено — з міркувань безпеки).
-
-Використовувати: повторна відправка коду після реєстрації або окремий флоу «підтвердити email».
-
----
-
-## 4. Логін (якщо вже підтверджений)
+## 2. Логін
 
 Стандартний Strapi-ендпоінт:
 
@@ -188,11 +135,11 @@ Authorization: Bearer <jwt>
 
 **identifier** — email або username.
 
-**Успіх (200):** `{ "jwt": "...", "user": { ... } }` — так само зберігати `jwt` і далі використовувати в `Authorization: Bearer <jwt>`.
+**Успіх (200):** `{ "jwt": "...", "user": { ... } }` — зберігати `jwt` і використовувати в `Authorization: Bearer <jwt>`.
 
 ---
 
-## 5. Забув пароль — запит коду
+## 3. Забув пароль — запит коду на email
 
 **POST** `/api/auth/password/request-code`
 
@@ -205,11 +152,11 @@ Authorization: Bearer <jwt>
 
 **Успіх (200):** `{ "ok": true }` (завжди, з міркувань безпеки).
 
-Показати екран введення коду з листа та нового пароля, потім викликати **password/reset**.
+Показати екран введення коду з листа та нового пароля, потім викликати **password/reset**. Код на email використовується **тільки для скидання пароля**, не для підтвердження реєстрації.
 
 ---
 
-## 6. Скидання пароля за кодом
+## 4. Скидання пароля за кодом
 
 **POST** `/api/auth/password/reset`
 
@@ -246,17 +193,15 @@ Authorization: Bearer <jwt>
 
 ## Схема флоу
 
-### Реєстрація
+### Реєстрація (без підтвердження email)
 1. Форма: email, username, password → **POST /api/auth/register**
-2. Екран «Введіть код з email»
-3. Форма: email + код → **POST /api/auth/email/verify-code**
-4. Отримали `jwt` + `user` → вважати користувача залогіненим, зберегти JWT
+2. У відповіді одразу `jwt` + `user` → вважати залогіненим, зберегти JWT
 
-### Логін (вже підтверджений)
+### Логін
 1. Форма: identifier (email/username) + password → **POST /api/auth/local**
 2. Отримали `jwt` + `user` → зберегти JWT
 
-### Забув пароль
+### Забув пароль (код тільки тут)
 1. Форма: email → **POST /api/auth/password/request-code**
 2. Екран: email (можна показати readonly) + код + новий пароль
 3. **POST /api/auth/password/reset** з email, code, password
@@ -278,13 +223,11 @@ Authorization: Bearer <jwt>
 
 ## Підсумок ендпоінтів
 
-| Дія              | Method | URL                              | Auth |
-|------------------|--------|-----------------------------------|------|
-| Реєстрація       | POST   | /api/auth/register                | Ні   |
-| Підтвердити email| POST   | /api/auth/email/verify-code       | Ні   |
-| Код на email     | POST   | /api/auth/email/request-code     | Ні   |
-| Логін            | POST   | /api/auth/local                   | Ні   |
-| Код для скидання | POST   | /api/auth/password/request-code  | Ні   |
-| Скинути пароль   | POST   | /api/auth/password/reset         | Ні   |
+| Дія               | Method | URL                              | Auth |
+|-------------------|--------|-----------------------------------|------|
+| Реєстрація        | POST   | /api/auth/register                | Ні   |
+| Логін             | POST   | /api/auth/local                   | Ні   |
+| Код для скидання  | POST   | /api/auth/password/request-code   | Ні   |
+| Скинути пароль    | POST   | /api/auth/password/reset          | Ні   |
 
-Код (email/password) завжди **6 цифр**, дійсний **10 хвилин**.
+Ендпоінти `/api/auth/email/request-code` та `/api/auth/email/verify-code` залишені для сумісності; для нових користувачів підтвердження email не використовується — код на email лише для **скидання пароля**. Код завжди **6 цифр**, дійсний **10 хвилин**.
