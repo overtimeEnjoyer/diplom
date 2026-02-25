@@ -197,8 +197,10 @@ export default {
         subject: 'Password reset code',
         text: `Your password reset code is: ${code}`,
       });
-    } catch (err) {
-      strapi.log.warn('RequestPasswordCode: email send failed', { email, err });
+      strapi.log.info('RequestPasswordCode: email sent', { to: email });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      strapi.log.error(`RequestPasswordCode: email send failed — ${msg}. Check EMAIL_SMTP_HOST, EMAIL_SMTP_PORT, EMAIL_SMTP_USER, EMAIL_SMTP_PASS in .env`);
     }
     return ctx.send({ ok: true });
   },

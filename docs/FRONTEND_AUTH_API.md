@@ -191,6 +191,28 @@ headers: {
 
 ---
 
+## Налаштування пошти на бекенді (код для скидання пароля)
+
+Щоб листи з кодом **реально відправлялись**, на бекенді мають бути задані змінні оточення для Nodemailer (SMTP):
+
+| Змінна | Опис | Приклад |
+|--------|------|--------|
+| `EMAIL_SMTP_HOST` | SMTP-сервер | `smtp.sendgrid.net` або `smtp.gmail.com` |
+| `EMAIL_SMTP_PORT` | Порт (587 / 465) | `587` |
+| `EMAIL_SMTP_USER` | Логін SMTP | SendGrid API key або email |
+| `EMAIL_SMTP_PASS` | Пароль / API key | секрет |
+| `EMAIL_FROM` | Адреса відправника | `noreply@yourdomain.com` |
+
+- **Локально:** додай їх у `.env` у корені проєкту бекенду.
+- **Render:** у Web Service → Environment додай ці змінні (значення з SendGrid, Gmail тощо).
+
+Якщо змінні порожні або невалідні, ендпоінт **POST /api/auth/password/request-code** все одно поверне **200** (з міркувань безпеки), але лист не полетить. У логах Strapi з’явиться: `RequestPasswordCode: email send failed — check EMAIL_SMTP_* env`.
+
+**Фронт:** після відправки форми «Забули пароль» потрібно робити саме **POST** на бекенд, наприклад  
+`POST ${API_URL}/api/auth/password/request-code` з тілом `{ "email": "user@example.com" }`. Запит на саму сторінку (GET `/auth/forgot-password`) листи не відправляє — це лише відкриття форми.
+
+---
+
 ## Схема флоу
 
 ### Реєстрація (без підтвердження email)
