@@ -193,15 +193,14 @@ headers: {
 
 ## Налаштування пошти на бекенді (код для скидання пароля)
 
-Щоб листи з кодом **реально відправлялись**, на бекенді мають бути задані змінні оточення для Nodemailer (SMTP):
+Щоб листи з кодом **реально відправлялись**, на бекенді має бути налаштована пошта. **Рекомендовано:** SendGrid через HTTP API (не SMTP) — працює на Render, де порт 587 часто блокують. Достатньо змінних `SENDGRID_API_KEY` або `EMAIL_SMTP_PASS` (SendGrid API key) та `EMAIL_FROM`. Якщо API key задано, бекенд автоматично використовує SendGrid API замість SMTP.
 
-| Змінна | Опис | Приклад |
-|--------|------|--------|
-| `EMAIL_SMTP_HOST` | SMTP-сервер | `smtp.sendgrid.net` або `smtp.gmail.com` |
-| `EMAIL_SMTP_PORT` | Порт (587 / 465) | `587` |
-| `EMAIL_SMTP_USER` | Логін SMTP | SendGrid API key або email |
-| `EMAIL_SMTP_PASS` | Пароль / API key | секрет |
-| `EMAIL_FROM` | Адреса відправника | `noreply@yourdomain.com` |
+Альтернатива (SMTP): `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASS`, `EMAIL_FROM`. При "Connection timeout" варто перейти на SendGrid API (змінні вище).
+
+| Змінна | Опис |
+|--------|------|
+| `SENDGRID_API_KEY` або `EMAIL_SMTP_PASS` | SendGrid API key |
+| `EMAIL_FROM` | Адреса відправника |
 
 - **Локально:** додай їх у `.env` у корені проєкту бекенду.
 - **Render:** у Web Service → Environment додай ці змінні (значення з SendGrid, Gmail тощо).
