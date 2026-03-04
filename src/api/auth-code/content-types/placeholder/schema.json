@@ -1,0 +1,18 @@
+{
+  "kind": "collectionType",
+  "collectionName": "auth_code_placeholders",
+  "info": {
+    "singularName": "placeholder",
+    "pluralName": "placeholders",
+    "displayName": "Auth placeholder"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string"
+    }
+  }
+}

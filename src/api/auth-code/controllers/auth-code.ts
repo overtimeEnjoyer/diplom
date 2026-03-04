@@ -251,4 +251,115 @@ export default {
 
     return ctx.send({ ok: true, message: 'Password has been reset' });
   },
+
+  /** Ensure ctx.state.user is set from JWT when route uses auth: false. */
+  async ensureUserFromJwt(ctx: { state: { user?: unknown }; request?: { header?: { authorization?: string } } }) {
+    if (ctx.state.user) return;
+    try {
+      const jwtService = strapi.plugin('users-permissions').service('jwt') as { getToken: (ctx: unknown) => Promise<{ id?: number } | null> };
+      const payload = await jwtService.getToken(ctx);
+      if (payload?.id == null) return;
+      const userService = strapi.plugin('users-permissions').service('user') as { fetchAuthenticatedUser: (id: number) => Promise<unknown> };
+      const user = await userService.fetchAuthenticatedUser(Number(payload.id));
+      if (user) (ctx.state as { user?: unknown }).user = user;
+    } catch {
+      // invalid or missing token — leave ctx.state.user unset
+    }
+  },
+
+  /** 6. Get current user (requires JWT). */
+  async me(ctx) {
+    await this.ensureUserFromJwt(ctx);
+    const user = ctx.state.user;
+    if (!user) {
+      return ctx.unauthorized();
+    }
+    const full = await strapi.query('plugin::users-permissions.user').findOne({
+      where: { id: user.id },
+      populate: ['role'],
+    });
+    if (!full) {
+      return ctx.notFound();
+    }
+    return ctx.send({
+      id: full.id,
+      documentId: full.documentId,
+      username: full.username,
+      email: full.email,
+      confirmed: full.confirmed,
+      blocked: full.blocked,
+      provider: full.provider,
+      role: full.role,
+      createdAt: full.createdAt,
+      updatedAt: full.updatedAt,
+    });
+  },
+
+  /** 7. Update current user profile (requires JWT). Only username, email, password. */
+  async updateMe(ctx) {
+    await this.ensureUserFromJwt(ctx);
+    const user = ctx.state.user;
+    if (!user) {
+      return ctx.unauthorized();
+    }
+    const { username, email, password } = ctx.request.body || {};
+    const updateData: Record<string, unknown> = {};
+
+    if (username !== undefined) {
+      if (typeof username !== 'string' || username.length < 3) {
+        return ctx.badRequest('Username must be at least 3 characters');
+      }
+      const existing = await strapi.query('plugin::users-permissions.user').findOne({
+        where: { username },
+      });
+      if (existing && Number(existing.id) !== Number(user.id)) {
+        return ctx.badRequest('Username already taken');
+      }
+      updateData.username = username;
+    }
+
+    if (email !== undefined) {
+      if (typeof email !== 'string' || email.length < 6) {
+        return ctx.badRequest('Invalid email');
+      }
+      const existing = await strapi.query('plugin::users-permissions.user').findOne({
+        where: { email: email.toLowerCase() },
+      });
+      if (existing && Number(existing.id) !== Number(user.id)) {
+        return ctx.badRequest('Email already taken');
+      }
+      updateData.email = email.toLowerCase();
+    }
+
+    if (password !== undefined) {
+      if (password !== null && (typeof password !== 'string' || password.length < 6)) {
+        return ctx.badRequest('Password must be at least 6 characters');
+      }
+      if (password) {
+        updateData.password = await bcrypt.hash(password, 10);
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return ctx.badRequest('Provide at least one of: username, email, password');
+    }
+
+    await strapi.query('plugin::users-permissions.user').update({
+      where: { id: user.id },
+      data: updateData,
+    });
+
+    const updated = await strapi.query('plugin::users-permissions.user').findOne({
+      where: { id: user.id },
+    });
+    return ctx.send({
+      id: updated.id,
+      documentId: updated.documentId,
+      username: updated.username,
+      email: updated.email,
+      confirmed: updated.confirmed,
+      blocked: updated.blocked,
+      provider: updated.provider,
+    });
+  },
 };

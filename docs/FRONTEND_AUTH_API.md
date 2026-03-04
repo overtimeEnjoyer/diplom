@@ -191,6 +191,39 @@ headers: {
 
 ---
 
+## 5. Поточний користувач і оновлення профілю
+
+**GET** `/api/auth/me` — отримати профіль поточного користувача (ендпоінт з розширення users-permissions).
+
+**Заголовок:** `Authorization: Bearer <jwt>` (обов’язково).
+
+**Успіх (200):** тіло з полями `id`, `documentId`, `username`, `email`, `confirmed`, `blocked`, `provider`, `role`, `createdAt`, `updatedAt`.
+
+---
+
+**POST** `/api/auth/profile` — оновити профіль поточного користувача (тільки свій акаунт; ендпоінт з розширення users-permissions).
+
+**Заголовок:** `Authorization: Bearer <jwt>` (обов’язково).
+
+**Body (будь-яке поєднання полів):**
+```json
+{
+  "username": "newusername",
+  "email": "new@example.com",
+  "password": "newPassword123"
+}
+```
+
+**Валідація:** username ≥ 3 символи, email валідний, password ≥ 6 символів (якщо передано).
+
+**Успіх (200):** оновлений об’єкт користувача (без пароля).
+
+**Помилки (400):** "Username already taken", "Email already taken", "Username must be at least 3 characters" тощо. **401** — немає або невалідний JWT.
+
+На фронті використовуй саме цей ендпоінт для форми «Редагувати профіль» — користувач може змінювати лише свої дані.
+
+---
+
 ## Налаштування пошти на бекенді (код для скидання пароля)
 
 Щоб листи з кодом **реально відправлялись**, на бекенді має бути налаштована пошта. **Рекомендовано:** SendGrid через HTTP API (не SMTP) — працює на Render, де порт 587 часто блокують. Достатньо змінних `SENDGRID_API_KEY` або `EMAIL_SMTP_PASS` (SendGrid API key) та `EMAIL_FROM`. Якщо API key задано, бекенд автоматично використовує SendGrid API замість SMTP.
@@ -246,9 +279,11 @@ Authorization: Bearer <jwt>
 
 | Дія               | Method | URL                              | Auth |
 |-------------------|--------|-----------------------------------|------|
-| Реєстрація        | POST   | /api/auth/register                | Ні   |
+| Реєстрація        | POST   | /api/auth-code/auth/register      | Ні   |
 | Логін             | POST   | /api/auth/local                   | Ні   |
-| Код для скидання  | POST   | /api/auth/password/request-code   | Ні   |
-| Скинути пароль    | POST   | /api/auth/password/reset          | Ні   |
+| Профіль (мене)    | GET    | /api/auth/me                      | JWT  |
+| Оновити профіль   | POST   | /api/auth/profile                 | JWT  |
+| Код для скидання  | POST   | /api/auth-code/auth/password/request-code | Ні   |
+| Скинути пароль    | POST   | /api/auth-code/auth/password/reset| Ні   |
 
 Ендпоінти `/api/auth/email/request-code` та `/api/auth/email/verify-code` залишені для сумісності; для нових користувачів підтвердження email не використовується — код на email лише для **скидання пароля**. Код завжди **6 цифр**, дійсний **10 хвилин**.
