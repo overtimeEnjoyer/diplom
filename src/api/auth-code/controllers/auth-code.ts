@@ -5,6 +5,12 @@ import bcrypt from 'bcryptjs';
 
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 min
 
+/** SendGrid dynamic template for password reset email (new design). */
+const SENDGRID_TEMPLATE_PASSWORD_RESET = 'd-f428088d3f7743fe88ff7c3521e0e782';
+
+/** SendGrid dynamic template for feedback form email (new design). */
+const SENDGRID_TEMPLATE_FEEDBACK = 'd-d1aee82899404657bedb899dcb8e7c5d';
+
 function generateCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -195,9 +201,9 @@ export default {
       await strapi.plugin('email').service('email').send({
         to: email,
         subject: 'Password reset code',
-        text: `Your password reset code is: ${code}`,
+        templateId: SENDGRID_TEMPLATE_PASSWORD_RESET,
+        dynamicTemplateData: { code },
       });
-      strapi.log.info('RequestPasswordCode: email sent', { to: email });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       strapi.log.error(`RequestPasswordCode: email send failed — ${msg}. Check EMAIL_SMTP_HOST, EMAIL_SMTP_PORT, EMAIL_SMTP_USER, EMAIL_SMTP_PASS in .env`);
@@ -362,4 +368,63 @@ export default {
       provider: updated.provider,
     });
   },
+
+  /** 8. Form зворотного зв'язку: ім'я, повідомлення, email, тариф (опційно). Надсилає лист на FEEDBACK_EMAIL. */
+  async sendFeedback(ctx) {
+    const body = ctx.request.body || {};
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const tariff = body.tariff != null ? String(body.tariff).trim() : '';
+
+    if (!name || name.length < 2) {
+      return ctx.badRequest("Ім'я та прізвище обов'язкові (мін. 2 символи)");
+    }
+    if (!message || message.length < 10) {
+      return ctx.badRequest('Повідомлення обов\'язкове (мін. 10 символів)');
+    }
+    if (!email) {
+      return ctx.badRequest('Email обов\'язковий');
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return ctx.badRequest('Невірний формат email');
+    }
+
+    const to =
+      process.env.FEEDBACK_EMAIL ||
+      process.env.EMAIL_FROM ||
+      'no-reply@example.com';
+
+    try {
+      strapi.log.info('Feedback email sending', { to });
+      await strapi.plugin('email').service('email').send({
+        to,
+        replyTo: email,
+        subject: `Зворотний зв'язок: ${name}`,
+        templateId: SENDGRID_TEMPLATE_FEEDBACK,
+        dynamicTemplateData: {
+          name,
+          message,
+          email,
+          tariff: tariff || '—',
+        },
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      strapi.log.error('Feedback email send failed', { to, err: msg });
+      return ctx.internalServerError('Не вдалося надіслати повідомлення. Спробуйте пізніше.');
+    }
+
+    return ctx.send({ ok: true, message: 'Повідомлення надіслано' });
+  },
 };
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}

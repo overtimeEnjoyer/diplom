@@ -64,5 +64,13 @@ export default {
         auth: false,
       },
     },
+    {
+      method: 'POST',
+      path: '/feedback',
+      handler: 'auth-code.sendFeedback',
+      config: {
+        auth: false,
+      },
+    },
   ],
 };

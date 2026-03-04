@@ -275,15 +275,67 @@ Authorization: Bearer <jwt>
 
 ---
 
+## Форма зворотного зв'язку
+
+**POST** `/api/feedback`
+
+Надсилання даних форми зворотного зв'язку (ім'я, повідомлення, email, опційно тариф). Лист відправляється на пошту, задану в `FEEDBACK_EMAIL` (або `EMAIL_FROM`) на бекенді. Для відправки потрібен **SendGrid**: у `.env` має бути `SENDGRID_API_KEY`.
+
+**Body:**
+```json
+{
+  "name": "Ім'я та Прізвище",
+  "message": "Текст повідомлення від користувача",
+  "email": "user@example.com",
+  "tariff": "Назва тарифу (опційно)"
+}
+```
+
+| Поле      | Обов'язкове | Валідація                    |
+|-----------|-------------|------------------------------|
+| name      | так         | мін. 2 символи               |
+| message   | так         | мін. 10 символів             |
+| email     | так         | валідний email                |
+| tariff    | ні          | рядок (наприклад вибраний тариф) |
+
+**Успіх (200):**
+```json
+{
+  "ok": true,
+  "message": "Повідомлення надіслано"
+}
+```
+
+**Помилки (400):** повідомлення українською (наприклад "Ім'я та прізвище обов'язкові (мін. 2 символи)").
+
+**Приклад з фронту:**
+```ts
+const res = await fetch(`${API_URL}/api/feedback`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: formData.name,
+    message: formData.message,
+    email: formData.email,
+    tariff: formData.tariff || undefined, // опційно
+  }),
+});
+```
+
+**Бекенд (.env):** вказати `FEEDBACK_EMAIL` — куди приходитимуть листи (наприклад `admin@yoursite.com`). Для SendGrid також потрібен `SENDGRID_API_KEY`.
+
+---
+
 ## Підсумок ендпоінтів
 
 | Дія               | Method | URL                              | Auth |
 |-------------------|--------|-----------------------------------|------|
-| Реєстрація        | POST   | /api/auth-code/auth/register      | Ні   |
+| Реєстрація        | POST   | /api/auth/register                | Ні   |
 | Логін             | POST   | /api/auth/local                   | Ні   |
 | Профіль (мене)    | GET    | /api/auth/me                      | JWT  |
 | Оновити профіль   | POST   | /api/auth/profile                 | JWT  |
-| Код для скидання  | POST   | /api/auth-code/auth/password/request-code | Ні   |
-| Скинути пароль    | POST   | /api/auth-code/auth/password/reset| Ні   |
+| Код для скидання  | POST   | /api/auth/password/request-code   | Ні   |
+| Скинути пароль    | POST   | /api/auth/password/reset          | Ні   |
+| Зворотний зв'язок | POST   | /api/feedback                    | Ні   |
 
 Ендпоінти `/api/auth/email/request-code` та `/api/auth/email/verify-code` залишені для сумісності; для нових користувачів підтвердження email не використовується — код на email лише для **скидання пароля**. Код завжди **6 цифр**, дійсний **10 хвилин**.
