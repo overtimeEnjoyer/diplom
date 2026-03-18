@@ -1,0 +1,28 @@
+{
+  "kind": "collectionType",
+  "collectionName": "user_method_sections",
+  "info": {
+    "singularName": "user-method-section",
+    "pluralName": "user-method-sections",
+    "displayName": "User Method Section"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "method_section": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::method-section.method-section"
+    },
+    "isPaid": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

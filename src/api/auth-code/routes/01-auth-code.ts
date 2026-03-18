@@ -72,5 +72,29 @@ export default {
         auth: false,
       },
     },
+    {
+      method: 'GET',
+      path: '/mak-cards/favorites',
+      handler: 'auth-code.getMakFavorites',
+      config: { auth: false },
+    },
+    {
+      method: 'PUT',
+      path: '/mak-cards/favorites',
+      handler: 'auth-code.setMakFavorites',
+      config: { auth: false },
+    },
+    {
+      method: 'POST',
+      path: '/mak-cards/favorites/toggle',
+      handler: 'auth-code.toggleMakFavorite',
+      config: { auth: false },
+    },
+    {
+      method: 'POST',
+      path: '/mak-cards/access',
+      handler: 'auth-code.grantMakCardsAccess',
+      config: { auth: false },
+    },
   ],
 };

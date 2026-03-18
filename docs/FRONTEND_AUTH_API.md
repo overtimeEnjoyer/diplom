@@ -197,7 +197,7 @@ headers: {
 
 **Заголовок:** `Authorization: Bearer <jwt>` (обов’язково).
 
-**Успіх (200):** тіло з полями `id`, `documentId`, `username`, `email`, `confirmed`, `blocked`, `provider`, `role`, `createdAt`, `updatedAt`.
+**Успіх (200):** тіло з полями `id`, `documentId`, `username`, `email`, `confirmed`, `blocked`, `provider`, `role`, `makCardsAccess`, `makFavoriteCardIds`, `methodSections`, `createdAt`, `updatedAt`. Поле `makCardsAccess` (boolean) — доступ до МАК-карток (увімкнути після оплати). Поле `makFavoriteCardIds` (string[]) — улюблені МАК-картки. Поле `methodSections` (array) — масив записів user-method-section поточного користувача (як у GET мої секції): кожен елемент містить `id`, `documentId`, `createdAt`, `updatedAt`, `publishedAt`, `locale`, `isPaid`, `method_section` (з `id`, `documentId`, `slug`, `title`, `subtitle`, `mobtitle`).
 
 ---
 
@@ -326,16 +326,398 @@ const res = await fetch(`${API_URL}/api/feedback`, {
 
 ---
 
+## Методики (method-sections та methods)
+
+### Доступ з фронтенду
+
+- У Strapi в **Settings → Users & Permissions Plugin → Roles → Public** потрібно дати права:
+  - **method-section**: `find`, `findOne`
+  - **method**: `find`, `findOne`
+- Після цього фронт може читати методики напряму без JWT (публічний контент).
+
+### 1. Список усіх розділів методик
+
+**GET** `/api/method-sections`
+
+Повертає всі розділи (без методів усередині, тільки сам розділ).
+
+**Приклад відповіді (скорочено):**
+
+```json
+{
+  "data": [
+    {
+      "id": 2,
+      "slug": "communicate",
+      "title": "Для розвитку комунікативних навичок, психологічного клімату та коучингу",
+      "subtitle": "Комунікація, психологічний клімат...",
+      "mobtitle": "Для розвитку комуні-\\nкативних навичок..."
+    }
+  ],
+  "meta": { "pagination": { "total": 7 } }
+}
+```
+
+**Типове використання:** побудова меню / списку категорій методик на фронті.
+
+### 2. Один розділ + усі його методики (аналог локальних CommunicateMethodic/KidsSectionMethodic)
+
+**GET** `/api/method-sections?filters[slug][$eq]={slug}&populate=methods`
+
+Наприклад, для розділу `communicate`:
+
+```text
+/api/method-sections?filters[slug][$eq]=communicate&populate=methods
+```
+
+**Приклад відповіді (структура):**
+
+```json
+{
+  "data": [
+    {
+      "id": 2,
+      "slug": "communicate",
+      "title": "...",
+      "subtitle": "...",
+      "mobtitle": "...",
+      "methods": {
+        "data": [
+          {
+            "id": 702,
+            "title": "Практика \"Eat the Frog\" (З’їж жабу)",
+            "slug": "eat-the-frog-communicate",
+            "author_source": "...",
+            "approach": "...",
+            "target_audience": "...",
+            "goal": "...",
+            "time": "",
+            "materials": "",
+            "purpose": [ { "type": "paragraph", "children": [ { "text": "..." } ] } ],
+            "therapeutic_effect": [ ... ],
+            "short_instruction": null,
+            "instruction": [ ... ],
+            "interpretation": null,
+            "completion": null
+          }
+          // інші методики...
+        ]
+      }
+    }
+  ]
+}
+```
+
+**Рекомендований хелпер на фронті (TypeScript, Next/Vite):**
+
+```ts
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:1337';
+
+export async function getMethodicsSectionBySlug(category: string) {
+  const res = await fetch(
+    `${API_URL}/api/method-sections?filters[slug][$eq]=${encodeURIComponent(
+      category
+    )}&populate=methods`
+  );
+
+  if (!res.ok) throw new Error('Failed to load method section');
+
+  const json = await res.json();
+  const item = json.data[0];
+  if (!item) return null;
+
+  return {
+    id: item.id,
+    slug: item.slug,
+    title: item.title,
+    subtitle: item.subtitle,
+    mobtitle: item.mobtitle,
+    methods: item.methods?.data ?? [],
+  };
+}
+```
+
+Це повністю замінює попередню логіку з локальними файлами `CommunicateMethodic.ts`, `KidsSectionMethodic.ts` тощо — тепер дані приходять зі Strapi.
+
+### 3. Окрема методика за slug (detail-сторінка)
+
+**GET** `/api/methods?filters[slug][$eq]={methodSlug}&populate=method_section`
+
+Наприклад:
+
+```text
+/api/methods?filters[slug][$eq]=thought-record-communicate&populate=method_section
+```
+
+**Приклад відповіді (структура):**
+
+```json
+{
+  "data": [
+    {
+      "id": 766,
+      "title": "Техніка “Щоденник думок” (Thought Record)",
+      "slug": "thought-record-communicate",
+      "author_source": "...",
+      "approach": "...",
+      "target_audience": "...",
+      "goal": "...",
+      "time": "",
+      "materials": "",
+      "purpose": [ ...blocks... ],
+      "therapeutic_effect": [ ...blocks... ],
+      "short_instruction": null,
+      "instruction": [ ...blocks... ],
+      "interpretation": null,
+      "completion": [ ...blocks... ],
+      "method_section": {
+        "data": {
+          "id": 2,
+          "slug": "communicate",
+          "title": "Для розвитку комунікативних навичок..."
+        }
+      }
+    }
+  ]
+}
+```
+
+**Рекомендований хелпер на фронті:**
+
+```ts
+export async function getMethodicBySlug(slug: string) {
+  const res = await fetch(
+    `${API_URL}/api/methods?filters[slug][$eq]=${encodeURIComponent(
+      slug
+    )}&populate=method_section`
+  );
+
+  if (!res.ok) throw new Error('Failed to load method');
+
+  const json = await res.json();
+  const item = json.data[0];
+  if (!item) return null;
+
+  return item;
+}
+```
+
+### 4. Відображення блоків (fields типу blocks) на фронті
+
+Поля `purpose`, `therapeutic_effect`, `short_instruction`, `instruction`, `interpretation`, `completion` у Strapi мають тип **blocks**.  
+Структура — масив блоків (аналог rich-text). Для простого відображення можна взяти всі `paragraph` і з'єднати текст:
+
+```ts
+function blocksToPlainText(blocks: any[] | null | undefined): string {
+  if (!blocks) return '';
+  return blocks
+    .map((block) =>
+      block?.children?.map((child: any) => child.text || '').join('')
+    )
+    .join('\n\n');
+}
+```
+
+Далі у компоненті:
+
+```tsx
+<p>{blocksToPlainText(method.purpose)}</p>
+```
+
+Цього достатньо, щоб швидко показати текст. Якщо потрібний складніший рендер rich-text — можна додати окремий компонент-рендерер для Strapi blocks.
+
+---
+
 ## Підсумок ендпоінтів
 
 | Дія               | Method | URL                              | Auth |
 |-------------------|--------|-----------------------------------|------|
-| Реєстрація        | POST   | /api/auth/register                | Ні   |
-| Логін             | POST   | /api/auth/local                   | Ні   |
-| Профіль (мене)    | GET    | /api/auth/me                      | JWT  |
-| Оновити профіль   | POST   | /api/auth/profile                 | JWT  |
-| Код для скидання  | POST   | /api/auth/password/request-code   | Ні   |
-| Скинути пароль    | POST   | /api/auth/password/reset          | Ні   |
-| Зворотний зв'язок | POST   | /api/feedback                    | Ні   |
+| Реєстрація                 | POST   | /api/auth/register                              | Ні   |
+| Логін                      | POST   | /api/auth/local                                 | Ні   |
+| Профіль (мене)             | GET    | /api/auth/me                                    | JWT  |
+| Оновити профіль            | POST   | /api/auth/profile                               | JWT  |
+| Код для скидання           | POST   | /api/auth/password/request-code                 | Ні   |
+| Скинути пароль             | POST   | /api/auth/password/reset                        | Ні   |
+| Зворотний зв'язок          | POST   | /api/feedback                                   | Ні   |
+| Список розділів методик    | GET    | /api/method-sections                            | Публічний (Public role: find) |
+| Розділ + його методики     | GET    | /api/method-sections?filters[slug][$eq]={slug}&populate=methods | Публічний (Public role: find) |
+| Методики за розділом       | GET    | /api/methods?filters[method_section][slug][$eq]={slug} | Публічний (Public role: find) |
+| Окрема методика за slug    | GET    | /api/methods?filters[slug][$eq]={methodSlug}    | Публічний (Public role: find) |
+| Прив'язати розділ до користувача | POST   | /api/user-method-sections/assign               | JWT  |
+| Мої розділи методик        | GET    | /api/user-method-sections/me                    | JWT  |
+| (видалено) Доступ до майнд-карт | —      | —                                                | —    |
+| Дати доступ до МАК-карток (тимчасово по кліку, далі — після оплати) | POST   | /api/mak-cards/access                            | JWT  |
+| Улюблені МАК-картки — отримати список               | GET    | /api/mak-cards/favorites                         | JWT  |
+| Улюблені МАК-картки — замінити список              | PUT    | /api/mak-cards/favorites                         | JWT  |
+| Улюблені МАК-картки — додати/прибрати одну картку   | POST   | /api/mak-cards/favorites/toggle                  | JWT  |
+
+---
+
+## Улюблені МАК-картки
+
+Бекенд зберігає для користувача (з JWT) масив **id улюблених карток** — рядки на кшталт `"card-1"`, `"card-3"`, `"card-7"`. На фронті кожна картка має поле `id` (string); валідні id — ті, що в константі карток (наприклад у `MakCardsData/cards.ts`). Поле **`makFavoriteCardIds`** також повертається в **GET /api/auth/me**.
+
+### GET /api/mak-cards/favorites — отримати список улюблених
+
+**Auth:** `Authorization: Bearer <jwt>`
+
+**Успіх (200):**
+```json
+{ "favoriteCardIds": ["card-1", "card-3", "card-7"] }
+```
+
+**Помилки:** **401** — не авторизований.
+
+### PUT /api/mak-cards/favorites — повністю замінити список (варіант A)
+
+**Auth:** `Authorization: Bearer <jwt>`
+
+**Body:**
+```json
+{ "favoriteCardIds": ["card-1", "card-3", "card-7"] }
+```
+
+**Успіх (200):** той самий об’єкт або `{ "favoriteCardIds": ["card-1", "card-3", "card-7"] }`.
+
+**Помилки:** **401** — не авторизований. **400** — `favoriteCardIds` не масив (або не рядки в масиві; бекенд відфільтрує не-рядки і збереже лише рядки).
+
+### POST /api/mak-cards/favorites/toggle — додати або прибрати одну картку (варіант B)
+
+**Auth:** `Authorization: Bearer <jwt>`
+
+**Body:**
+```json
+{ "cardId": "card-1" }
+```
+
+**Успіх (200):** поточний список після додавання/видалення:
+```json
+{ "favoriteCardIds": ["card-1", "card-3"] }
+```
+
+**Помилки:** **401** — не авторизований. **400** — `cardId` відсутній або не рядок (або порожній рядок).
+
+**Приклад з фронту:**
+
+```ts
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:1337';
+
+export async function getMakFavorites(jwt: string) {
+  const res = await fetch(`${API_URL}/api/mak-cards/favorites`, {
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+  if (!res.ok) throw new Error('Failed to load favorites');
+  const data = await res.json();
+  return data.favoriteCardIds as string[];
+}
+
+export async function setMakFavorites(jwt: string, favoriteCardIds: string[]) {
+  const res = await fetch(`${API_URL}/api/mak-cards/favorites`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({ favoriteCardIds }),
+  });
+  if (!res.ok) throw new Error('Failed to save favorites');
+  const data = await res.json();
+  return data.favoriteCardIds as string[];
+}
+
+export async function toggleMakFavorite(jwt: string, cardId: string) {
+  const res = await fetch(`${API_URL}/api/mak-cards/favorites/toggle`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({ cardId }),
+  });
+  if (!res.ok) throw new Error('Failed to toggle favorite');
+  const data = await res.json();
+  return data.favoriteCardIds as string[];
+}
+```
+
+---
+
+## Персональні розділи методик (особистий кабінет)
+
+### 1. Прив'язати розділ до користувача
+
+Коли користувач клікає на розділ методик (карточка розділу / кнопка "Додати до кабінету"), фронт викликає ендпоінт:
+
+- **URL:** `POST /api/user-method-sections/assign`
+- **Auth:** потрібно передати `Authorization: Bearer <jwt>`
+- **Body:**
+
+```json
+{
+  "methodSectionId": 2
+}
+```
+
+`methodSectionId` — це `id` розділу з `method-section` (наприклад, отриманий з `GET /api/method-sections`).
+
+Якщо такий зв'язок уже існує, бекенд просто повертає існуючий запис; якщо ні — створює новий.
+
+**Приклад з фронту (TypeScript, React / Next / Vite):**
+
+```ts
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:1337';
+
+export async function assignMethodSectionToUser(methodSectionId: number, jwt: string) {
+  const res = await fetch(`${API_URL}/api/user-method-sections/assign`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({ methodSectionId }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error?.message || data.message || 'Failed to assign method section');
+  }
+
+  return data;
+}
+```
+
+Типовий сценарій на UI: після кліку на розділ (або після успішної оплати тарифа) викликати `assignMethodSectionToUser` з `id` потрібного розділу.
+
+### 2. Отримати розділи користувача для особистого кабінету
+
+Для сторінки "Мої методики" фронт має отримати всі розділи, які прив'язані до поточного користувача.
+
+- **URL:** `GET /api/user-method-sections/me`
+- **Auth:** `Authorization: Bearer <jwt>`
+
+**Приклад з фронту:**
+
+```ts
+export async function getMyMethodSections(jwt: string) {
+  const res = await fetch(`${API_URL}/api/user-method-sections/me`, {
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+    },
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error?.message || data.message || 'Failed to load user method sections');
+  }
+
+  return data;
+}
+```
+
+У відповіді бекенд повертає обʼєкт:
+- `items`: масив записів `user-method-section` з популяцією `method_section`
+- `makCardsAccess`: boolean — чи має користувач доступ до МАК-карток
+
+Тому на фронті для розділів достатньо взяти `data.items` і показати `item.method_section`.
 
 Ендпоінти `/api/auth/email/request-code` та `/api/auth/email/verify-code` залишені для сумісності; для нових користувачів підтвердження email не використовується — код на email лише для **скидання пароля**. Код завжди **6 цифр**, дійсний **10 хвилин**.

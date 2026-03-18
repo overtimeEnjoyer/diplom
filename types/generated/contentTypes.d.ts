@@ -467,35 +467,6 @@ export interface AdminUser extends Struct.CollectionTypeSchema {
   };
 }
 
-export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
-  collectionName: 'articles';
-  info: {
-    displayName: 'Article';
-    pluralName: 'articles';
-    singularName: 'article';
-  };
-  options: {
-    draftAndPublish: true;
-  };
-  attributes: {
-    content: Schema.Attribute.Blocks;
-    createdAt: Schema.Attribute.DateTime;
-    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::article.article'
-    > &
-      Schema.Attribute.Private;
-    publishedAt: Schema.Attribute.DateTime;
-    title: Schema.Attribute.String;
-    updatedAt: Schema.Attribute.DateTime;
-    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-  };
-}
-
 export interface ApiAuthCodePlaceholder extends Struct.CollectionTypeSchema {
   collectionName: 'auth_code_placeholders';
   info: {
@@ -521,6 +492,125 @@ export interface ApiAuthCodePlaceholder extends Struct.CollectionTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+  };
+}
+
+export interface ApiMethodSectionMethodSection
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'method_sections';
+  info: {
+    displayName: 'method-section';
+    pluralName: 'method-sections';
+    singularName: 'method-section';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::method-section.method-section'
+    > &
+      Schema.Attribute.Private;
+    methods: Schema.Attribute.Relation<'oneToMany', 'api::method.method'>;
+    mobtitle: Schema.Attribute.Text;
+    publishedAt: Schema.Attribute.DateTime;
+    slug: Schema.Attribute.UID;
+    subtitle: Schema.Attribute.Text;
+    title: Schema.Attribute.Text;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiMethodMethod extends Struct.CollectionTypeSchema {
+  collectionName: 'methods';
+  info: {
+    displayName: 'method';
+    pluralName: 'methods';
+    singularName: 'method';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    approach: Schema.Attribute.Text;
+    author_source: Schema.Attribute.Text;
+    completion: Schema.Attribute.Blocks;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    goal: Schema.Attribute.Text;
+    instruction: Schema.Attribute.Blocks;
+    interpretation: Schema.Attribute.Blocks;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::method.method'
+    > &
+      Schema.Attribute.Private;
+    materials: Schema.Attribute.String;
+    method_section: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::method-section.method-section'
+    >;
+    publishedAt: Schema.Attribute.DateTime;
+    purpose: Schema.Attribute.Blocks;
+    reflection_questions: Schema.Attribute.Component<
+      'methods.reflection-questions',
+      true
+    >;
+    short_instruction: Schema.Attribute.Blocks;
+    slug: Schema.Attribute.UID<'title'>;
+    target_audience: Schema.Attribute.Text;
+    therapeutic_effect: Schema.Attribute.Blocks;
+    time: Schema.Attribute.String;
+    title: Schema.Attribute.Text;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiUserMethodSectionUserMethodSection
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'user_method_sections';
+  info: {
+    displayName: 'User Method Section';
+    pluralName: 'user-method-sections';
+    singularName: 'user-method-section';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    isPaid: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::user-method-section.user-method-section'
+    > &
+      Schema.Attribute.Private;
+    method_section: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::method-section.method-section'
+    >;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
   };
 }
 
@@ -1001,6 +1091,9 @@ export interface PluginUsersPermissionsUser
       'plugin::users-permissions.user'
     > &
       Schema.Attribute.Private;
+    makCardsAccess: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    makFavoriteCardIds: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<[]>;
     password: Schema.Attribute.Password &
       Schema.Attribute.Private &
       Schema.Attribute.SetMinMaxLength<{
@@ -1039,8 +1132,10 @@ declare module '@strapi/strapi' {
       'admin::transfer-token': AdminTransferToken;
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
-      'api::article.article': ApiArticleArticle;
       'api::auth-code.placeholder': ApiAuthCodePlaceholder;
+      'api::method-section.method-section': ApiMethodSectionMethodSection;
+      'api::method.method': ApiMethodMethod;
+      'api::user-method-section.user-method-section': ApiUserMethodSectionUserMethodSection;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

@@ -19,6 +19,40 @@ function hashCode(code: string) {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
+/** Блокування по user.id для toggle/set favorites — щоб паралельні запити не перезаписували список. */
+const makFavoritesLocks = new Map<number, Promise<unknown>>();
+function withMakFavoritesLock<T>(userId: number, fn: () => Promise<T>): Promise<T> {
+  const prev = makFavoritesLocks.get(userId) ?? Promise.resolve();
+  const promise = prev
+    .then(() => fn())
+    .finally(() => {
+      if (makFavoritesLocks.get(userId) === promise) makFavoritesLocks.delete(userId);
+    });
+  makFavoritesLocks.set(userId, promise);
+  return promise as Promise<T>;
+}
+
+/** Записати makFavoriteCardIds у БД напряму (Knex). strapi.query для users-permissions може не зберігати кастомні поля. */
+async function writeMakFavoritesToDb(userId: number, favoriteCardIds: string[]): Promise<void> {
+  const knex = strapi.db?.connection;
+  console.log('knex exists?', !!strapi.db, !!strapi.db?.connection);
+  if (!knex) {
+    await strapi.query('plugin::users-permissions.user').update({
+      where: { id: userId },
+      data: { makFavoriteCardIds: favoriteCardIds },
+    });
+    return;
+  }
+  const isPg = knex.client?.config?.client === 'pg';
+  const value = isPg ? favoriteCardIds : JSON.stringify(favoriteCardIds);
+  const updated = await knex('up_users')
+    .where('id', userId)
+    .update({ mak_favorite_card_ids: value });
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[mak-favorites] writeMakFavoritesToDb userId=', userId, 'rowsAffected=', updated, 'value=', isPg ? value : (value as string).slice(0, 80));
+  }
+}
+
 export default {
   /** 1. Register: create user (confirmed=true), no email. Return JWT immediately. */
   async register(ctx) {
@@ -287,6 +321,33 @@ export default {
     if (!full) {
       return ctx.notFound();
     }
+    const makFavoriteCardIds = this.normalizeFavoriteCardIds(full.makFavoriteCardIds);
+    let makCardsAccess = full.makCardsAccess === true;
+    const knex = strapi.db?.connection;
+    if (knex) {
+      try {
+        const rows = await knex('up_users').select('mak_cards_access').where('id', full.id).limit(1);
+        if (rows[0] && rows[0].mak_cards_access != null) makCardsAccess = !!rows[0].mak_cards_access;
+      } catch {
+        // колонка може ще не існувати до міграції
+      }
+    }
+    let methodSections: unknown[] = [];
+    try {
+      const userDocId = (full as { documentId?: string }).documentId;
+      if (userDocId && strapi.entityService) {
+        const items = await strapi.entityService.findMany(
+          'api::user-method-section.user-method-section',
+          {
+            filters: { user: { documentId: userDocId } },
+            populate: { method_section: { fields: ['id', 'documentId', 'slug', 'title', 'subtitle', 'mobtitle'] } },
+          } as Record<string, unknown>,
+        );
+        methodSections = Array.isArray(items) ? items : [];
+      }
+    } catch {
+      // ігноруємо помилку (наприклад, контент-тип не знайдено)
+    }
     return ctx.send({
       id: full.id,
       documentId: full.documentId,
@@ -296,9 +357,138 @@ export default {
       blocked: full.blocked,
       provider: full.provider,
       role: full.role,
+      makCardsAccess,
+      makFavoriteCardIds,
+      methodSections,
       createdAt: full.createdAt,
       updatedAt: full.updatedAt,
     });
+  },
+
+  /** Дати доступ до МАК-карток поточному користувачу. Зараз — по кліку на кнопку; пізніше фронт може викликати після оплати. */
+  async grantMakCardsAccess(ctx) {
+    await this.ensureUserFromJwt(ctx);
+    const user = ctx.state.user;
+    if (!user) {
+      return ctx.unauthorized();
+    }
+    const knex = strapi.db?.connection;
+    let makCardsAccess = true;
+    if (knex) {
+      try {
+        await knex('up_users').where('id', user.id).update({ mak_cards_access: true });
+      } catch {
+        await strapi.query('plugin::users-permissions.user').update({
+          where: { id: user.id },
+          data: { makCardsAccess: true },
+        });
+      }
+    } else {
+      await strapi.query('plugin::users-permissions.user').update({
+        where: { id: user.id },
+        data: { makCardsAccess: true },
+      });
+    }
+    return ctx.send({ makCardsAccess });
+  },
+
+  /** Нормалізує makFavoriteCardIds з БД у масив рядків (плоский). */
+  normalizeFavoriteCardIds(raw) {
+    if (Array.isArray(raw)) {
+      const out = [];
+      for (const item of raw) {
+        if (typeof item === 'string') out.push(item);
+        else if (Array.isArray(item)) out.push(...item.filter((id) => typeof id === 'string'));
+      }
+      return out;
+    }
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      if (raw.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            return parsed.filter((id) => typeof id === 'string');
+          }
+        } catch (_) {}
+      }
+      return [raw];
+    }
+    return [];
+  },
+
+  /** Улюблені МАК-картки: отримати список id. Читаємо з БД напряму (як і запис), щоб обійти можливе ігнорування кастомних полів у strapi.query. */
+  async getMakFavorites(ctx) {
+    await this.ensureUserFromJwt(ctx);
+    const user = ctx.state.user;
+    if (!user) {
+      return ctx.unauthorized();
+    }
+    let raw: unknown;
+    const knex = strapi.db?.connection;
+    if (knex) {
+      const rows = await knex('up_users').select('mak_favorite_card_ids').where('id', user.id).limit(1);
+      raw = rows[0]?.mak_favorite_card_ids;
+    }
+    if (raw === undefined) {
+      const full = await strapi.query('plugin::users-permissions.user').findOne({
+        where: { id: user.id },
+      });
+      raw = full?.makFavoriteCardIds;
+    }
+    const favoriteCardIds = this.normalizeFavoriteCardIds(raw);
+    if (process.env.NODE_ENV !== 'production') console.log('[mak-favorites GET] returning favoriteCardIds=', JSON.stringify(favoriteCardIds));
+    return ctx.send({ favoriteCardIds });
+  },
+
+  /** Улюблені МАК-картки: повністю замінити список. */
+  async setMakFavorites(ctx) {
+    await this.ensureUserFromJwt(ctx);
+    const user = ctx.state.user;
+    if (!user) {
+      return ctx.unauthorized();
+    }
+    const { favoriteCardIds } = ctx.request.body || {};
+    if (!Array.isArray(favoriteCardIds)) {
+      return ctx.badRequest('favoriteCardIds must be an array');
+    }
+    const toStore = favoriteCardIds.filter((id) => typeof id === 'string');
+    if (process.env.NODE_ENV !== 'production') console.log('[mak-favorites PUT] toStore=', toStore);
+    await withMakFavoritesLock(user.id, async () => {
+      await writeMakFavoritesToDb(user.id, toStore);
+    });
+    return ctx.send({ favoriteCardIds: toStore });
+  },
+
+  /** Улюблені МАК-картки: додати або прибрати одну картку за id. Завжди повертає поточний список після toggle. */
+  async toggleMakFavorite(ctx) {
+    await this.ensureUserFromJwt(ctx);
+    const user = ctx.state.user;
+    if (!user) {
+      return ctx.unauthorized();
+    }
+    const { cardId } = ctx.request.body || {};
+    if (typeof cardId !== 'string' || cardId.trim() === '') {
+      return ctx.badRequest('cardId must be a non-empty string');
+    }
+    const toStore = await withMakFavoritesLock(user.id, async () => {
+      const full = await strapi.query('plugin::users-permissions.user').findOne({
+        where: { id: user.id },
+      });
+      const raw = full?.makFavoriteCardIds;
+      if (process.env.NODE_ENV !== 'production') console.log('[mak-favorites TOGGLE] read raw=', JSON.stringify(raw));
+      let list = this.normalizeFavoriteCardIds(raw);
+      const idx = list.indexOf(cardId);
+      if (idx === -1) {
+        list = [...list, cardId];
+      } else {
+        list = list.filter((_, i) => i !== idx);
+      }
+      const result = [...list];
+      if (process.env.NODE_ENV !== 'production') console.log('[mak-favorites TOGGLE] toStore=', result);
+      await writeMakFavoritesToDb(user.id, result);
+      return result;
+    });
+    return ctx.send({ favoriteCardIds: toStore });
   },
 
   /** 7. Update current user profile (requires JWT). Only username, email, password. */

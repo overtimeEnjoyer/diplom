@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_methods_reflection_questions",
+  "info": {
+    "displayName": "reflection_questions",
+    "icon": "alien"
+  },
+  "options": {},
+  "attributes": {
+    "text": {
+      "type": "text"
+    }
+  },
+  "config": {}
+}

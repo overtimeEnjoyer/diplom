@@ -81,6 +81,16 @@
     "passwordResetExpires": {
       "type": "datetime",
       "private": true
+    },
+    "makCardsAccess": {
+      "type": "boolean",
+      "default": false,
+      "description": "Доступ до МАК-карток (увімкнути після оплати)"
+    },
+    "makFavoriteCardIds": {
+      "type": "json",
+      "default": [],
+      "description": "Улюблені МАК-картки: масив id, напр. [\"card-1\", \"card-3\"]"
     }
   }
 }

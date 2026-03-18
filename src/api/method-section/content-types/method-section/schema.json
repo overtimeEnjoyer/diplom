@@ -1,0 +1,33 @@
+{
+  "kind": "collectionType",
+  "collectionName": "method_sections",
+  "info": {
+    "singularName": "method-section",
+    "pluralName": "method-sections",
+    "displayName": "method-section"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "slug": {
+      "type": "uid"
+    },
+    "title": {
+      "type": "text"
+    },
+    "subtitle": {
+      "type": "text"
+    },
+    "mobtitle": {
+      "type": "text"
+    },
+    "methods": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::method.method",
+      "mappedBy": "method_section"
+    }
+  }
+}
