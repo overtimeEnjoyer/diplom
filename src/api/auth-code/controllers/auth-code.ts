@@ -95,6 +95,9 @@ export default {
         provider: 'local',
         confirmed: true,
         blocked: false,
+        // SQLite/Knex не завжди коректно біндіть json-дефолт `[]` (масив),
+        // тому явно ставимо `null` — для першого рендеру favorites це норм.
+        makFavoriteCardIds: null,
         role: defaultRole.id,
       },
     });

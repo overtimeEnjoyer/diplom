@@ -1093,7 +1093,7 @@ export interface PluginUsersPermissionsUser
       Schema.Attribute.Private;
     makCardsAccess: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
-    makFavoriteCardIds: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<[]>;
+    makFavoriteCardIds: Schema.Attribute.JSON;
     password: Schema.Attribute.Password &
       Schema.Attribute.Private &
       Schema.Attribute.SetMinMaxLength<{
