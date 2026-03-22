@@ -197,7 +197,7 @@ headers: {
 
 **Заголовок:** `Authorization: Bearer <jwt>` (обов’язково).
 
-**Успіх (200):** тіло з полями `id`, `documentId`, `username`, `email`, `confirmed`, `blocked`, `provider`, `role`, `makCardsAccess`, `makFavoriteCardIds`, `methodSections`, `createdAt`, `updatedAt`. Поле `makCardsAccess` (boolean) — доступ до МАК-карток (увімкнути після оплати). Поле `makFavoriteCardIds` (string[]) — улюблені МАК-картки. Поле `methodSections` (array) — масив записів user-method-section поточного користувача (як у GET мої секції): кожен елемент містить `id`, `documentId`, `createdAt`, `updatedAt`, `publishedAt`, `locale`, `isPaid`, `method_section` (з `id`, `documentId`, `slug`, `title`, `subtitle`, `mobtitle`).
+**Успіх (200):** тіло з полями `id`, `documentId`, `username`, `email`, `confirmed`, `blocked`, `provider`, `role`, `makCardsAccess`, `isMedium`, `isPremium`, `makFavoriteCardIds`, `methodSections`, `createdAt`, `updatedAt`. Поле `makCardsAccess` (boolean) — доступ до МАК-карток (увімкнути після оплати). Поле `isMedium` (boolean) — доступ до тарифу Medium (увімкнути після активації тарифу). Поле `isPremium` (boolean) — доступ до тарифу Premium (увімкнути після активації тарифу). Поле `makFavoriteCardIds` (string[]) — улюблені МАК-картки. Поле `methodSections` (array) — масив записів user-method-section поточного користувача (як у GET мої секції): кожен елемент містить `id`, `documentId`, `createdAt`, `updatedAt`, `publishedAt`, `locale`, `isPaid`, `method_section` (з `id`, `documentId`, `slug`, `title`, `subtitle`, `mobtitle`).
 
 ---
 
@@ -543,10 +543,14 @@ function blocksToPlainText(blocks: any[] | null | undefined): string {
 | Розділ + його методики     | GET    | /api/method-sections?filters[slug][$eq]={slug}&populate=methods | Публічний (Public role: find) |
 | Методики за розділом       | GET    | /api/methods?filters[method_section][slug][$eq]={slug} | Публічний (Public role: find) |
 | Окрема методика за slug    | GET    | /api/methods?filters[slug][$eq]={methodSlug}    | Публічний (Public role: find) |
-| Прив'язати розділ до користувача | POST   | /api/user-method-sections/assign               | JWT  |
+| Ініціалізація оплати одного розділу | POST   | /api/user-method-sections/assign               | JWT  |
 | Мої розділи методик        | GET    | /api/user-method-sections/me                    | JWT  |
+| Активація тарифу Medium   | POST   | /api/tariffs/medium/activate                     | JWT  |
+| Активація тарифу Premium  | POST   | /api/tariffs/premium/activate                    | JWT  |
+| Callback від WayForPay (для підтвердження оплати) | POST   | /api/payments/wayforpay-callback                 | Ні   |
+| Перевірка статусу доступу за orderReference       | GET    | /api/payments/status?orderReference={value}      | Ні   |
 | (видалено) Доступ до майнд-карт | —      | —                                                | —    |
-| Дати доступ до МАК-карток (тимчасово по кліку, далі — після оплати) | POST   | /api/mak-cards/access                            | JWT  |
+| Ініціалізація оплати доступу до МАК-карток | POST   | /api/mak-cards/access                            | JWT  |
 | Улюблені МАК-картки — отримати список               | GET    | /api/mak-cards/favorites                         | JWT  |
 | Улюблені МАК-картки — замінити список              | PUT    | /api/mak-cards/favorites                         | JWT  |
 | Улюблені МАК-картки — додати/прибрати одну картку   | POST   | /api/mak-cards/favorites/toggle                  | JWT  |
@@ -642,11 +646,101 @@ export async function toggleMakFavorite(jwt: string, cardId: string) {
 
 ---
 
+## Тариф Medium
+
+### Ініціалізація оплати тарифу Medium
+
+Коли користувач обирає тариф `medium` і натискає кнопку, фронт викликає:
+
+- **URL:** `POST /api/tariffs/medium/activate`
+- **Auth:** `Authorization: Bearer <jwt>`
+- **Body:** порожнє тіло або `{}` (бекенд не читає поля)
+
+**Що відбувається:** бекенд ініціалізує платіж WayForPay (сума `1 UAH`) і повертає `paymentUrl` для редіректу. Доступ (`isMedium`, `user-method-sections.isPaid=true`) вмикається тільки після успішного callback від WayForPay на `POST /api/payments/wayforpay-callback`. У `returnUrl` бекенд автоматично додає `?kind=medium`.
+
+**Успіх (200):** повертає дані для оплати:
+```json
+{
+  "status": "payment_required",
+  "access": "medium",
+  "kind": "medium",
+  "orderReference": "RKM|medium|123|1710000000000|abc123",
+  "amount": 1,
+  "currency": "UAH",
+  "paymentUrl": "https://secure.wayforpay.com/page?..."
+}
+```
+
+**Приклад з фронту (TypeScript):**
+```ts
+export async function activateMediumTariff(jwt: string) {
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:1337';
+  const res = await fetch(`${API_URL}/api/tariffs/medium/activate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({}),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.message || 'Failed to init payment');
+  return data;
+}
+```
+
+---
+
+## Тариф Premium
+
+### Ініціалізація оплати тарифу Premium
+
+Коли користувач обирає тариф `premium` і натискає кнопку, фронт викликає:
+
+- **URL:** `POST /api/tariffs/premium/activate`
+- **Auth:** `Authorization: Bearer <jwt>`
+- **Body:** порожнє тіло або `{}` (бекенд не читає поля)
+
+**Що відбувається:** бекенд ініціалізує платіж WayForPay (сума `1 UAH`) і повертає `paymentUrl` для редіректу. Доступ (`isPremium`, `makCardsAccess=true`, `user-method-sections.isPaid=true`) вмикається тільки після успішного callback від WayForPay на `POST /api/payments/wayforpay-callback`. У `returnUrl` бекенд автоматично додає `?kind=premium`.
+
+**Успіх (200):** повертає дані для оплати:
+```json
+{
+  "status": "payment_required",
+  "access": "premium",
+  "kind": "premium",
+  "orderReference": "RKM|premium|123|1710000000000|abc123",
+  "amount": 1,
+  "currency": "UAH",
+  "paymentUrl": "https://secure.wayforpay.com/page?..."
+}
+```
+
+**Приклад з фронту (TypeScript):**
+```ts
+export async function activatePremiumTariff(jwt: string) {
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:1337';
+  const res = await fetch(`${API_URL}/api/tariffs/premium/activate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({}),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.message || 'Failed to init payment');
+  return data;
+}
+```
+
+---
+
 ## Персональні розділи методик (особистий кабінет)
 
-### 1. Прив'язати розділ до користувача
+### 1. Ініціалізація оплати одного розділу
 
-Коли користувач клікає на розділ методик (карточка розділу / кнопка "Додати до кабінету"), фронт викликає ендпоінт:
+Коли користувач клікає на розділ методик (карточка розділу / кнопка "Купити розділ"), фронт викликає ендпоінт:
 
 - **URL:** `POST /api/user-method-sections/assign`
 - **Auth:** потрібно передати `Authorization: Bearer <jwt>`
@@ -654,39 +748,49 @@ export async function toggleMakFavorite(jwt: string, cardId: string) {
 
 ```json
 {
-  "methodSectionId": 2
+  "methodSectionId": 2,
+  "categorySlug": "communicate",
+  "methodicSlug": "anger-map-anger-diary"
 }
 ```
 
 `methodSectionId` — це `id` розділу з `method-section` (наприклад, отриманий з `GET /api/method-sections`).
+`categorySlug` і `methodicSlug` — опційні. Якщо передані, бекенд додасть їх у `returnUrl`:
+`... ?kind=section&category=<categorySlug>&methodic=<methodicSlug>`.
 
-Якщо такий зв'язок уже існує, бекенд просто повертає існуючий запис; якщо ні — створює новий.
+Бекенд ініціалізує платіж WayForPay на `1 UAH` для конкретного `methodSectionId` і повертає `paymentUrl`.
+Після успішного callback від WayForPay бекенд створює/оновлює `user-method-section` і виставляє `isPaid=true` тільки для цього розділу.
 
 **Приклад з фронту (TypeScript, React / Next / Vite):**
 
 ```ts
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:1337';
 
-export async function assignMethodSectionToUser(methodSectionId: number, jwt: string) {
+export async function assignMethodSectionToUser(
+  methodSectionId: number,
+  jwt: string,
+  categorySlug?: string,
+  methodicSlug?: string,
+) {
   const res = await fetch(`${API_URL}/api/user-method-sections/assign`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${jwt}`,
     },
-    body: JSON.stringify({ methodSectionId }),
+    body: JSON.stringify({ methodSectionId, categorySlug, methodicSlug }),
   });
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error?.message || data.message || 'Failed to assign method section');
+    throw new Error(data.error?.message || data.message || 'Failed to init section payment');
   }
 
-  return data;
+  return data; // payment_required + paymentUrl
 }
 ```
 
-Типовий сценарій на UI: після кліку на розділ (або після успішної оплати тарифа) викликати `assignMethodSectionToUser` з `id` потрібного розділу.
+Типовий сценарій на UI: після кліку на розділ викликати `assignMethodSectionToUser`, отримати `paymentUrl`, зробити redirect на оплату. Після callback + повернення на фронт зробити polling `getMe() / getMyMethodSections()` і оновити UI.
 
 ### 2. Отримати розділи користувача для особистого кабінету
 
@@ -721,3 +825,27 @@ export async function getMyMethodSections(jwt: string) {
 Тому на фронті для розділів достатньо взяти `data.items` і показати `item.method_section`.
 
 Ендпоінти `/api/auth/email/request-code` та `/api/auth/email/verify-code` залишені для сумісності; для нових користувачів підтвердження email не використовується — код на email лише для **скидання пароля**. Код завжди **6 цифр**, дійсний **10 хвилин**.
+
+---
+
+## Перевірка статусу оплати (додатково)
+
+### GET /api/payments/status
+
+Дозволяє перевірити, чи застосовано доступ за конкретним `orderReference` (після повернення з WayForPay).
+
+- **URL:** `GET /api/payments/status?orderReference={value}`
+- **Auth:** не обов'язковий (можна викликати і без JWT)
+
+**Успіх (200):**
+```json
+{
+  "orderReference": "RKM|mak-cards|4|1774026108957|nfuqdx",
+  "kind": "mak-cards",
+  "userId": 4,
+  "methodSectionId": null,
+  "paid": true
+}
+```
+
+Поле `paid=true` означає, що доступ уже застосовано в БД.

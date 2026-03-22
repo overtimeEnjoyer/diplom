@@ -37,10 +37,10 @@
       "type": "blocks"
     },
     "time": {
-      "type": "string"
+      "type": "text"
     },
     "materials": {
-      "type": "string"
+      "type": "text"
     },
     "short_instruction": {
       "type": "blocks"

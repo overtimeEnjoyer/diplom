@@ -20,6 +20,8 @@
     "./",
     // Include all ts files
     "./**/*.ts",
+    // Include all d.ts type declarations
+    "./**/*.d.ts",
     // Include all js files
     "./**/*.js",
     // Force the JSON files in the src folder to be included

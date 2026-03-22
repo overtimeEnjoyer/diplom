@@ -2,6 +2,7 @@
 
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { createAccessPayment } from '../../payments/services/payments';
 
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 min
 
@@ -326,11 +327,25 @@ export default {
     }
     const makFavoriteCardIds = this.normalizeFavoriteCardIds(full.makFavoriteCardIds);
     let makCardsAccess = full.makCardsAccess === true;
+    let isMedium = (full as any).isMedium === true;
+    let isPremium = (full as any).isPremium === true;
     const knex = strapi.db?.connection;
     if (knex) {
       try {
         const rows = await knex('up_users').select('mak_cards_access').where('id', full.id).limit(1);
         if (rows[0] && rows[0].mak_cards_access != null) makCardsAccess = !!rows[0].mak_cards_access;
+      } catch {
+        // колонка може ще не існувати до міграції
+      }
+      try {
+        const rows2 = await knex('up_users').select('is_medium').where('id', full.id).limit(1);
+        if (rows2[0] && rows2[0].is_medium != null) isMedium = !!rows2[0].is_medium;
+      } catch {
+        // колонка може ще не існувати до міграції
+      }
+      try {
+        const rows3 = await knex('up_users').select('is_premium').where('id', full.id).limit(1);
+        if (rows3[0] && rows3[0].is_premium != null) isPremium = !!rows3[0].is_premium;
       } catch {
         // колонка може ще не існувати до міграції
       }
@@ -361,6 +376,8 @@ export default {
       provider: full.provider,
       role: full.role,
       makCardsAccess,
+      isMedium,
+      isPremium,
       makFavoriteCardIds,
       methodSections,
       createdAt: full.createdAt,
@@ -368,31 +385,24 @@ export default {
     });
   },
 
-  /** Дати доступ до МАК-карток поточному користувачу. Зараз — по кліку на кнопку; пізніше фронт може викликати після оплати. */
+  /** Ініціалізує оплату доступу до МАК-карток. Сам доступ вмикається тільки після callback від WayForPay. */
   async grantMakCardsAccess(ctx) {
     await this.ensureUserFromJwt(ctx);
     const user = ctx.state.user;
     if (!user) {
       return ctx.unauthorized();
     }
-    const knex = strapi.db?.connection;
-    let makCardsAccess = true;
-    if (knex) {
-      try {
-        await knex('up_users').where('id', user.id).update({ mak_cards_access: true });
-      } catch {
-        await strapi.query('plugin::users-permissions.user').update({
-          where: { id: user.id },
-          data: { makCardsAccess: true },
-        });
-      }
-    } else {
-      await strapi.query('plugin::users-permissions.user').update({
-        where: { id: user.id },
-        data: { makCardsAccess: true },
-      });
-    }
-    return ctx.send({ makCardsAccess });
+
+    const payment = await createAccessPayment('mak-cards', {
+      id: Number((user as any).id),
+      email: (user as any).email || undefined,
+    });
+
+    return ctx.send({
+      status: 'payment_required',
+      access: 'mak-cards',
+      ...payment,
+    });
   },
 
   /** Нормалізує makFavoriteCardIds з БД у масив рядків (плоский). */

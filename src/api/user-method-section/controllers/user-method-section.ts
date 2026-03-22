@@ -1,4 +1,5 @@
 import { factories } from "@strapi/strapi";
+import { createAccessPayment } from "../../payments/services/payments";
 
 export default factories.createCoreController(
   "api::user-method-section.user-method-section",
@@ -17,7 +18,7 @@ export default factories.createCoreController(
         return ctx.unauthorized();
       }
 
-      const { methodSectionId } = ctx.request.body || {};
+      const { methodSectionId, categorySlug, methodicSlug } = ctx.request.body || {};
       if (!methodSectionId) {
         return ctx.badRequest("methodSectionId is required");
       }
@@ -34,62 +35,34 @@ export default factories.createCoreController(
         return ctx.notFound("Method section not found");
       }
 
-      const userDocId = (user as any).documentId;
-      const methodSectionDocId = (methodSection as any).documentId;
-
-      const existing = await strapi.entityService.findMany(
-        "api::user-method-section.user-method-section",
+      const payment = await createAccessPayment(
+        "section",
         {
-          // фільтруємо по documentId, як у Strapi v5
-          filters: {
-            user: {
-              documentId: userDocId,
-            },
-            method_section: {
-              documentId: methodSectionDocId,
-            },
-          },
-          limit: 1,
-        } as any,
-      );
-
-      let entryId: number;
-
-      if (existing.length > 0) {
-        entryId = (existing[0] as any).id as number;
-      } else {
-        const created = await strapi.entityService.create(
-          "api::user-method-section.user-method-section",
-          {
-            // використовуємо documentId для connect (Strapi v5)
-            data: {
-              user: {
-                connect: [userDocId],
-              },
-              method_section: {
-                connect: [methodSectionDocId],
-              },
-              isPaid: false,
-            } as any,
-          },
-        );
-        entryId = (created as any).id as number;
-      }
-
-      // повертаємо запис з популяцією пов'язаного розділу
-      const full = await strapi.entityService.findOne(
-        "api::user-method-section.user-method-section",
-        entryId,
+          id: Number((user as any).id),
+          email: (user as any).email || undefined,
+        },
         {
-          populate: {
-            method_section: {
-              fields: ["id", "slug", "title", "subtitle", "mobtitle"],
-            },
+          methodSectionId: Number(methodSectionId),
+          returnParams: {
+            category: typeof categorySlug === "string" ? categorySlug : (methodSection as any).slug,
+            methodic: typeof methodicSlug === "string" ? methodicSlug : undefined,
           },
         },
       );
 
-      ctx.body = full;
+      ctx.body = {
+        status: "payment_required",
+        access: "section",
+        methodSectionId: Number(methodSectionId),
+        methodSection: {
+          id: (methodSection as any).id,
+          slug: (methodSection as any).slug,
+          title: (methodSection as any).title,
+          subtitle: (methodSection as any).subtitle,
+          mobtitle: (methodSection as any).mobtitle,
+        },
+        ...payment,
+      };
     },
 
     async mySections(ctx) {

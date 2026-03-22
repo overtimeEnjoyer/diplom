@@ -554,7 +554,7 @@ export interface ApiMethodMethod extends Struct.CollectionTypeSchema {
       'api::method.method'
     > &
       Schema.Attribute.Private;
-    materials: Schema.Attribute.String;
+    materials: Schema.Attribute.Text;
     method_section: Schema.Attribute.Relation<
       'manyToOne',
       'api::method-section.method-section'
@@ -569,7 +569,7 @@ export interface ApiMethodMethod extends Struct.CollectionTypeSchema {
     slug: Schema.Attribute.UID<'title'>;
     target_audience: Schema.Attribute.Text;
     therapeutic_effect: Schema.Attribute.Blocks;
-    time: Schema.Attribute.String;
+    time: Schema.Attribute.Text;
     title: Schema.Attribute.Text;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -1085,6 +1085,8 @@ export interface PluginUsersPermissionsUser
     emailConfirmationCode: Schema.Attribute.String & Schema.Attribute.Private;
     emailConfirmationExpires: Schema.Attribute.DateTime &
       Schema.Attribute.Private;
+    isMedium: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    isPremium: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',

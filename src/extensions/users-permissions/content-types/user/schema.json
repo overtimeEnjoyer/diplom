@@ -87,6 +87,16 @@
       "default": false,
       "description": "Доступ до МАК-карток (увімкнути після оплати)"
     },
+    "isMedium": {
+      "type": "boolean",
+      "default": false,
+      "description": "Доступ до тарифу Medium (увімкнути після оплати)"
+    },
+    "isPremium": {
+      "type": "boolean",
+      "default": false,
+      "description": "Доступ до тарифу Premium (увімкнути після оплати)"
+    },
     "makFavoriteCardIds": {
       "type": "json",
       "default": null,
