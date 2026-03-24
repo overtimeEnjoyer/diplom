@@ -43,6 +43,11 @@ function signHmacMd5(source: string, secret: string): string {
   return crypto.createHmac("md5", secret).update(source, "utf8").digest("hex");
 }
 
+function fingerprint(value: string): string {
+  if (!value) return "empty";
+  return crypto.createHash("sha256").update(value, "utf8").digest("hex").slice(0, 12);
+}
+
 function valueVariants(raw: unknown): string[] {
   const variants = new Set<string>();
   const base = String(raw ?? "");
@@ -204,6 +209,7 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
   }>;
   merchantAccountFromCallback: string;
   merchantAccountFromEnv: string;
+  keyFingerprints: { secret: string; password: string };
   fields: {
     orderReference: string;
     amountRaw: string;
@@ -297,6 +303,10 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
     candidates: candidates.slice(0, 80),
     merchantAccountFromCallback,
     merchantAccountFromEnv,
+    keyFingerprints: {
+      secret: fingerprint(merchantSecretKey),
+      password: fingerprint(merchantPassword || ""),
+    },
     fields: {
       orderReference,
       amountRaw,
@@ -370,6 +380,14 @@ export async function createAccessPayment(
     clientEmail: user.email || undefined,
     orderTimeout: 3600,
   };
+
+  if (String(process.env.WAYFORPAY_DEBUG_LOGS || "").toLowerCase() === "true") {
+    strapi.log.info(
+      `[wfp-create] account=${config.merchantAccount} domain=${config.merchantDomainName} keyFp(secret)=${fingerprint(
+        config.merchantSecretKey,
+      )} keyFp(password)=${fingerprint(config.merchantPassword || "")} orderReference=${orderReference} amount=${amount} currency=${CURRENCY}`,
+    );
+  }
 
   try {
     const response = await fetch(WFP_PAY_OFFLINE_URL, {

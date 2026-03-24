@@ -190,7 +190,7 @@ export default {
           .slice(0, 1200)
           .replace(/\s+/g, " ");
         strapi.log.warn(
-          `[wfp-callback] rejected: invalid merchantSignature orderReference=${orderReference} merchantAccountCb=${debug.merchantAccountFromCallback} merchantAccountEnv=${debug.merchantAccountFromEnv} providedPrefix=${debug.providedPrefix} expectedPrefixes=${debug.expectedPrefixes.join(",")} txStatus=${debug.fields.transactionStatus} amount=${debug.fields.amountRaw} currency=${debug.fields.currency} reasonCode=${debug.fields.reasonCodeRaw} payload=${callbackPayloadPreview}`,
+          `[wfp-callback] rejected: invalid merchantSignature orderReference=${orderReference} merchantAccountCb=${debug.merchantAccountFromCallback} merchantAccountEnv=${debug.merchantAccountFromEnv} keyFp(secret)=${debug.keyFingerprints.secret} keyFp(password)=${debug.keyFingerprints.password} providedPrefix=${debug.providedPrefix} expectedPrefixes=${debug.expectedPrefixes.join(",")} txStatus=${debug.fields.transactionStatus} amount=${debug.fields.amountRaw} currency=${debug.fields.currency} reasonCode=${debug.fields.reasonCodeRaw} payload=${callbackPayloadPreview}`,
         );
         if (debugLogsEnabled) {
           strapi.log.warn(
