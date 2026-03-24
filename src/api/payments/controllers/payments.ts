@@ -172,8 +172,11 @@ export default {
     if (!signatureValid) {
       if (process.env.NODE_ENV === "production") {
         const debug = getWayForPaySignatureDebug(payload);
+        const callbackPayloadPreview = JSON.stringify(payload)
+          .slice(0, 1200)
+          .replace(/\s+/g, " ");
         strapi.log.warn(
-          `[wfp-callback] rejected: invalid merchantSignature orderReference=${orderReference} merchantAccountCb=${debug.merchantAccountFromCallback} merchantAccountEnv=${debug.merchantAccountFromEnv} providedPrefix=${debug.providedPrefix} expectedPrefixes=${debug.expectedPrefixes.join(",")} txStatus=${debug.fields.transactionStatus} amount=${debug.fields.amountRaw} currency=${debug.fields.currency} reasonCode=${debug.fields.reasonCodeRaw}`,
+          `[wfp-callback] rejected: invalid merchantSignature orderReference=${orderReference} merchantAccountCb=${debug.merchantAccountFromCallback} merchantAccountEnv=${debug.merchantAccountFromEnv} providedPrefix=${debug.providedPrefix} expectedPrefixes=${debug.expectedPrefixes.join(",")} txStatus=${debug.fields.transactionStatus} amount=${debug.fields.amountRaw} currency=${debug.fields.currency} reasonCode=${debug.fields.reasonCodeRaw} payload=${callbackPayloadPreview}`,
         );
         return ctx.badRequest("Invalid merchantSignature");
       }
