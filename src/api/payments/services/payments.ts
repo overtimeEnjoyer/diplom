@@ -156,6 +156,75 @@ export function verifyWayForPayCallbackSignature(payload: Record<string, any>): 
   return false;
 }
 
+export function getWayForPaySignatureDebug(payload: Record<string, any>): {
+  providedPrefix: string;
+  expectedPrefixes: string[];
+  merchantAccountFromCallback: string;
+  merchantAccountFromEnv: string;
+  fields: {
+    orderReference: string;
+    amountRaw: string;
+    currency: string;
+    authCode: string;
+    cardPan: string;
+    transactionStatus: string;
+    reasonCodeRaw: string;
+  };
+} {
+  const { merchantSecretKey, merchantAccount: merchantAccountFromEnv } = requirePaymentConfig();
+  const provided = String(payload.merchantSignature ?? "").trim().toLowerCase();
+  const merchantAccountFromCallback = String(payload.merchantAccount ?? "");
+  const orderReference = String(payload.orderReference ?? "");
+  const amountRaw = String(payload.amount ?? "");
+  const currency = String(payload.currency ?? "");
+  const authCode = String(payload.authCode ?? "");
+  const cardPan = String(payload.cardPan ?? "");
+  const transactionStatus = String(payload.transactionStatus ?? "");
+  const reasonCodeRaw = String(payload.reasonCode ?? "");
+
+  const amountVariants = new Set<string>();
+  amountVariants.add(amountRaw);
+  const amountAsNumber = Number(payload.amount);
+  if (Number.isFinite(amountAsNumber)) {
+    amountVariants.add(amountAsNumber.toString());
+    amountVariants.add(amountAsNumber.toFixed(2));
+  }
+
+  const reasonCodeVariants = new Set<string>();
+  reasonCodeVariants.add(reasonCodeRaw);
+  const reasonAsNumber = Number(payload.reasonCode);
+  if (Number.isFinite(reasonAsNumber)) {
+    reasonCodeVariants.add(reasonAsNumber.toString());
+  }
+
+  const expectedPrefixes: string[] = [];
+  for (const amount of amountVariants) {
+    for (const reasonCode of reasonCodeVariants) {
+      const source = [merchantAccountFromCallback, orderReference, amount, currency, authCode, cardPan, transactionStatus, reasonCode].join(
+        ";",
+      );
+      const expected = signHmacMd5(source, merchantSecretKey).toLowerCase();
+      expectedPrefixes.push(expected.slice(0, 10));
+    }
+  }
+
+  return {
+    providedPrefix: provided.slice(0, 10),
+    expectedPrefixes: Array.from(new Set(expectedPrefixes)).slice(0, 8),
+    merchantAccountFromCallback,
+    merchantAccountFromEnv,
+    fields: {
+      orderReference,
+      amountRaw,
+      currency,
+      authCode,
+      cardPan,
+      transactionStatus,
+      reasonCodeRaw,
+    },
+  };
+}
+
 export function buildWayForPayCallbackAck(orderReference: string): { orderReference: string; status: "accept"; time: number; signature: string } {
   const { merchantSecretKey } = requirePaymentConfig();
   const time = nowSec();

@@ -5,6 +5,7 @@ import {
   checkAccessStatus,
   expectedCurrency,
   expectedPrice,
+  getWayForPaySignatureDebug,
   isSuccessTransactionStatus,
   parseOrderReference,
   verifyWayForPayCallbackSignature,
@@ -170,7 +171,10 @@ export default {
     const signatureValid = verifyWayForPayCallbackSignature(payload);
     if (!signatureValid) {
       if (process.env.NODE_ENV === "production") {
-        strapi.log.warn(`[wfp-callback] rejected: invalid merchantSignature orderReference=${orderReference}`);
+        const debug = getWayForPaySignatureDebug(payload);
+        strapi.log.warn(
+          `[wfp-callback] rejected: invalid merchantSignature orderReference=${orderReference} merchantAccountCb=${debug.merchantAccountFromCallback} merchantAccountEnv=${debug.merchantAccountFromEnv} providedPrefix=${debug.providedPrefix} expectedPrefixes=${debug.expectedPrefixes.join(",")} txStatus=${debug.fields.transactionStatus} amount=${debug.fields.amountRaw} currency=${debug.fields.currency} reasonCode=${debug.fields.reasonCodeRaw}`,
+        );
         return ctx.badRequest("Invalid merchantSignature");
       }
       strapi.log.warn(
