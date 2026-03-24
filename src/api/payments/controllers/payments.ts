@@ -156,6 +156,8 @@ export default {
     const derivedStatus =
       transactionStatus ||
       (Number.isFinite(reasonCode) && reasonCode === 1100 && reason.toLowerCase() === "ok" ? "Approved" : "") ||
+      // Some CREATE_INVOICE callbacks provide authCode without transactionStatus.
+      (authCode ? "Approved" : "") ||
       (process.env.NODE_ENV !== "production" && authCode ? "Approved" : "");
     const amount = Number(payload.amount);
     const currency = String(payload.currency || "");

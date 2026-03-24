@@ -149,6 +149,10 @@ export function verifyWayForPayCallbackSignature(payload: Record<string, any>): 
 
   for (const amount of amountVariants) {
     for (const reasonCode of reasonCodeVariants) {
+      // Invoice callback minimal format with authCode.
+      const expectedInvoiceWithAuth = makeExpected([merchantAccount, orderReference, amount, currency, authCode]);
+      if (provided === expectedInvoiceWithAuth) return true;
+
       // Standard transaction callback signature format.
       const expectedFull = makeExpected([
         merchantAccount,
@@ -219,7 +223,12 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
         [merchantAccountFromCallback, orderReference, amount, currency, authCode, cardPan, transactionStatus, reasonCode].join(";"),
         merchantSecretKey,
       ).toLowerCase();
+      const invoiceWithAuth = signHmacMd5(
+        [merchantAccountFromCallback, orderReference, amount, currency, authCode].join(";"),
+        merchantSecretKey,
+      ).toLowerCase();
       const short = signHmacMd5([merchantAccountFromCallback, orderReference, amount, currency].join(";"), merchantSecretKey).toLowerCase();
+      expectedPrefixes.push(invoiceWithAuth.slice(0, 10));
       expectedPrefixes.push(full.slice(0, 10));
       expectedPrefixes.push(short.slice(0, 10));
     }
