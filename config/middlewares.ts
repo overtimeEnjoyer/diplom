@@ -15,6 +15,7 @@ const corsOrigins =
       ];
 
 export default [
+  'global::wayforpay-callback-raw-body',
   'strapi::errors',
   {
     name: 'strapi::cors',

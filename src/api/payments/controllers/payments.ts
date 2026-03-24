@@ -11,6 +11,54 @@ import {
   verifyWayForPayCallbackSignature,
 } from "../services/payments";
 
+/** Parse callback JSON from raw body (see https://wiki.wayforpay.com/view/852102 — serviceUrl). */
+function parseWayForPayFromRaw(raw: string): Record<string, any> | null {
+  const t = raw.trim();
+  if (!t) return null;
+
+  const tryJson = (s: string): Record<string, any> | null => {
+    try {
+      const p = JSON.parse(s) as Record<string, any>;
+      return p?.orderReference ? p : null;
+    } catch {
+      return null;
+    }
+  };
+
+  let p = tryJson(t);
+  if (p) return p;
+
+  const firstBrace = t.indexOf("{");
+  if (firstBrace >= 0) {
+    let depth = 0;
+    for (let i = firstBrace; i < t.length; i++) {
+      const ch = t[i];
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          p = tryJson(t.slice(firstBrace, i + 1));
+          if (p) return p;
+          break;
+        }
+      }
+    }
+  }
+
+  const eq = t.indexOf("=");
+  if (eq > 0) {
+    const keyPart = t.slice(0, eq);
+    for (const cand of [keyPart, decodeURIComponent(keyPart.replace(/\+/g, " "))]) {
+      p = tryJson(cand);
+      if (p) return p;
+      const nested = parseWayForPayFromRaw(cand);
+      if (nested) return nested;
+    }
+  }
+
+  return null;
+}
+
 function parseFormEncodedString(raw: string): Record<string, any> {
   const out: Record<string, any> = {};
   const params = new URLSearchParams(raw);
@@ -147,9 +195,15 @@ function normalizeCallbackPayload(input: unknown): Record<string, any> {
 export default {
   async wayforpayCallback(ctx: any) {
     const debugLogsEnabled = String(process.env.WAYFORPAY_DEBUG_LOGS || "").toLowerCase() === "true";
-    const payload = normalizeCallbackPayload(ctx.request?.body);
+    const rawBody = typeof ctx.state?.wayforpayRawBody === "string" ? ctx.state.wayforpayRawBody : "";
+    const fromRaw = rawBody ? parseWayForPayFromRaw(rawBody) : null;
+    const fromBody = normalizeCallbackPayload(ctx.request?.body);
+    const payload = { ...fromBody, ...(fromRaw || {}) };
     const bodyKeys = ctx.request?.body && typeof ctx.request.body === "object" ? Object.keys(ctx.request.body) : [];
     if (debugLogsEnabled) {
+      if (rawBody) {
+        strapi.log.info(`[wfp-callback] rawBodyLen=${rawBody.length} rawParsedFields=${fromRaw ? Object.keys(fromRaw).join(",") : "none"}`);
+      }
       const reqMeta = {
         method: ctx.request?.method,
         url: ctx.request?.url,
@@ -163,12 +217,16 @@ export default {
     const orderReference = String(payload.orderReference || "");
     const transactionStatus = String(payload.transactionStatus || "");
     const reason = String(payload.reason || "");
-    const reasonCode = Number(payload.reasonCode);
+    const reasonCodeRaw = payload.reasonCode;
+    const reasonCode =
+      reasonCodeRaw === "" || reasonCodeRaw === null || reasonCodeRaw === undefined ? NaN : Number(reasonCodeRaw);
     const authCode = String(payload.authCode || "");
     const derivedStatus =
       transactionStatus ||
-      (Number.isFinite(reasonCode) && reasonCode === 1100 && reason.toLowerCase() === "ok" ? "Approved" : "") ||
-      // Some CREATE_INVOICE callbacks provide authCode without transactionStatus.
+      (Number.isFinite(reasonCode) && reasonCode === 1100 ? "Approved" : "") ||
+      // Create-invoice wiki example uses reason "1100" with empty reasonCode.
+      (String(payload.reason || "") === "1100" ? "Approved" : "") ||
+      // Some callbacks send authCode before transactionStatus appears in body.
       (authCode ? "Approved" : "") ||
       (process.env.NODE_ENV !== "production" && authCode ? "Approved" : "");
     const amount = Number(payload.amount);
@@ -240,6 +298,7 @@ export default {
       );
     }
 
+    ctx.set("Content-Type", "application/json; charset=utf-8");
     ctx.body = buildWayForPayCallbackAck(orderReference);
   },
 
