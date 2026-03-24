@@ -145,11 +145,26 @@ export function verifyWayForPayCallbackSignature(payload: Record<string, any>): 
     reasonCodeVariants.add(reasonAsNumber.toString());
   }
 
+  const makeExpected = (parts: string[]): string => signHmacMd5(parts.join(";"), merchantSecretKey).toLowerCase();
+
   for (const amount of amountVariants) {
     for (const reasonCode of reasonCodeVariants) {
-      const source = [merchantAccount, orderReference, amount, currency, authCode, cardPan, transactionStatus, reasonCode].join(";");
-      const expected = signHmacMd5(source, merchantSecretKey).toLowerCase();
-      if (provided === expected) return true;
+      // Standard transaction callback signature format.
+      const expectedFull = makeExpected([
+        merchantAccount,
+        orderReference,
+        amount,
+        currency,
+        authCode,
+        cardPan,
+        transactionStatus,
+        reasonCode,
+      ]);
+      if (provided === expectedFull) return true;
+
+      // Some invoice callbacks come with reduced field set.
+      const expectedShort = makeExpected([merchantAccount, orderReference, amount, currency]);
+      if (provided === expectedShort) return true;
     }
   }
 
@@ -200,11 +215,13 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
   const expectedPrefixes: string[] = [];
   for (const amount of amountVariants) {
     for (const reasonCode of reasonCodeVariants) {
-      const source = [merchantAccountFromCallback, orderReference, amount, currency, authCode, cardPan, transactionStatus, reasonCode].join(
-        ";",
-      );
-      const expected = signHmacMd5(source, merchantSecretKey).toLowerCase();
-      expectedPrefixes.push(expected.slice(0, 10));
+      const full = signHmacMd5(
+        [merchantAccountFromCallback, orderReference, amount, currency, authCode, cardPan, transactionStatus, reasonCode].join(";"),
+        merchantSecretKey,
+      ).toLowerCase();
+      const short = signHmacMd5([merchantAccountFromCallback, orderReference, amount, currency].join(";"), merchantSecretKey).toLowerCase();
+      expectedPrefixes.push(full.slice(0, 10));
+      expectedPrefixes.push(short.slice(0, 10));
     }
   }
 
