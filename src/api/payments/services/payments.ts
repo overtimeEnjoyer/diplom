@@ -8,6 +8,7 @@ type PaymentConfig = {
   merchantAccount: string;
   merchantDomainName: string;
   merchantSecretKey: string;
+  merchantPassword?: string;
   returnUrl: string;
   serviceUrl: string;
 };
@@ -27,6 +28,7 @@ function requirePaymentConfig(): PaymentConfig {
   const merchantAccount = (process.env.WAYFORPAY_MERCHANT_ACCOUNT || "").trim();
   const merchantDomainName = (process.env.WAYFORPAY_MERCHANT_DOMAIN_NAME || "").trim();
   const merchantSecretKey = (process.env.WAYFORPAY_MERCHANT_SECRET_KEY || "").trim();
+  const merchantPassword = (process.env.WAYFORPAY_MERCHANT_PASSWORD || "").trim();
   const returnUrl = (process.env.WAYFORPAY_RETURN_URL || "").trim();
   const serviceUrl = (process.env.WAYFORPAY_SERVICE_URL || "").trim();
 
@@ -34,11 +36,23 @@ function requirePaymentConfig(): PaymentConfig {
     throw new Error("WAYFORPAY env config is incomplete");
   }
 
-  return { merchantAccount, merchantDomainName, merchantSecretKey, returnUrl, serviceUrl };
+  return { merchantAccount, merchantDomainName, merchantSecretKey, merchantPassword, returnUrl, serviceUrl };
 }
 
 function signHmacMd5(source: string, secret: string): string {
   return crypto.createHmac("md5", secret).update(source, "utf8").digest("hex");
+}
+
+function valueVariants(raw: unknown): string[] {
+  const variants = new Set<string>();
+  const base = String(raw ?? "");
+  variants.add(base);
+  variants.add(base.trim());
+  if (base === "") {
+    variants.add("null");
+    variants.add("undefined");
+  }
+  return Array.from(variants);
 }
 
 function nowSec(): number {
@@ -115,9 +129,10 @@ export function parseOrderReference(orderReference: string): { kind: AccessKind;
 }
 
 export function verifyWayForPayCallbackSignature(payload: Record<string, any>): boolean {
-  const { merchantSecretKey } = requirePaymentConfig();
+  const { merchantSecretKey, merchantPassword } = requirePaymentConfig();
   const provided = String(payload.merchantSignature ?? "").trim().toLowerCase();
   if (!provided) return false;
+  const keysToTry = [merchantSecretKey, merchantPassword].filter((k): k is string => typeof k === "string" && k.length > 0);
 
   const merchantAccount = String(payload.merchantAccount ?? "");
   const orderReference = String(payload.orderReference ?? "");
@@ -145,30 +160,32 @@ export function verifyWayForPayCallbackSignature(payload: Record<string, any>): 
     reasonCodeVariants.add(reasonAsNumber.toString());
   }
 
-  const makeExpected = (parts: string[]): string => signHmacMd5(parts.join(";"), merchantSecretKey).toLowerCase();
+  const makeExpected = (parts: string[], key: string): string => signHmacMd5(parts.join(";"), key).toLowerCase();
+  const authCodeVariants = valueVariants(payload.authCode);
+  const cardPanVariants = valueVariants(payload.cardPan);
+  const txStatusVariants = valueVariants(payload.transactionStatus);
 
-  for (const amount of amountVariants) {
-    for (const reasonCode of reasonCodeVariants) {
-      // Invoice callback minimal format with authCode.
-      const expectedInvoiceWithAuth = makeExpected([merchantAccount, orderReference, amount, currency, authCode]);
-      if (provided === expectedInvoiceWithAuth) return true;
+  for (const key of keysToTry) {
+    for (const amount of amountVariants) {
+      for (const reasonCode of reasonCodeVariants) {
+        // Some invoice callbacks come with reduced field set.
+        const expectedShort = makeExpected([merchantAccount, orderReference, amount, currency], key);
+        if (provided === expectedShort) return true;
 
-      // Standard transaction callback signature format.
-      const expectedFull = makeExpected([
-        merchantAccount,
-        orderReference,
-        amount,
-        currency,
-        authCode,
-        cardPan,
-        transactionStatus,
-        reasonCode,
-      ]);
-      if (provided === expectedFull) return true;
+        for (const ac of authCodeVariants) {
+          // Invoice callback minimal format with authCode.
+          const expectedInvoiceWithAuth = makeExpected([merchantAccount, orderReference, amount, currency, ac], key);
+          if (provided === expectedInvoiceWithAuth) return true;
 
-      // Some invoice callbacks come with reduced field set.
-      const expectedShort = makeExpected([merchantAccount, orderReference, amount, currency]);
-      if (provided === expectedShort) return true;
+          for (const cp of cardPanVariants) {
+            for (const tx of txStatusVariants) {
+              // Standard transaction callback signature format.
+              const expectedFull = makeExpected([merchantAccount, orderReference, amount, currency, ac, cp, tx, reasonCode], key);
+              if (provided === expectedFull) return true;
+            }
+          }
+        }
+      }
     }
   }
 
@@ -177,7 +194,14 @@ export function verifyWayForPayCallbackSignature(payload: Record<string, any>): 
 
 export function getWayForPaySignatureDebug(payload: Record<string, any>): {
   providedPrefix: string;
+  provided: string;
   expectedPrefixes: string[];
+  candidates: Array<{
+    keyKind: "secret" | "password";
+    variant: "short" | "invoiceWithAuth" | "full";
+    source: string;
+    expectedPrefix: string;
+  }>;
   merchantAccountFromCallback: string;
   merchantAccountFromEnv: string;
   fields: {
@@ -190,8 +214,12 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
     reasonCodeRaw: string;
   };
 } {
-  const { merchantSecretKey, merchantAccount: merchantAccountFromEnv } = requirePaymentConfig();
+  const { merchantSecretKey, merchantPassword, merchantAccount: merchantAccountFromEnv } = requirePaymentConfig();
   const provided = String(payload.merchantSignature ?? "").trim().toLowerCase();
+  const keysToTry = [
+    { keyKind: "secret" as const, key: merchantSecretKey },
+    { keyKind: "password" as const, key: merchantPassword || "" },
+  ].filter((x) => x.key.length > 0);
   const merchantAccountFromCallback = String(payload.merchantAccount ?? "");
   const orderReference = String(payload.orderReference ?? "");
   const amountRaw = String(payload.amount ?? "");
@@ -217,26 +245,56 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
   }
 
   const expectedPrefixes: string[] = [];
-  for (const amount of amountVariants) {
-    for (const reasonCode of reasonCodeVariants) {
-      const full = signHmacMd5(
-        [merchantAccountFromCallback, orderReference, amount, currency, authCode, cardPan, transactionStatus, reasonCode].join(";"),
-        merchantSecretKey,
-      ).toLowerCase();
-      const invoiceWithAuth = signHmacMd5(
-        [merchantAccountFromCallback, orderReference, amount, currency, authCode].join(";"),
-        merchantSecretKey,
-      ).toLowerCase();
-      const short = signHmacMd5([merchantAccountFromCallback, orderReference, amount, currency].join(";"), merchantSecretKey).toLowerCase();
-      expectedPrefixes.push(invoiceWithAuth.slice(0, 10));
-      expectedPrefixes.push(full.slice(0, 10));
-      expectedPrefixes.push(short.slice(0, 10));
+  const candidates: Array<{
+    keyKind: "secret" | "password";
+    variant: "short" | "invoiceWithAuth" | "full";
+    source: string;
+    expectedPrefix: string;
+  }> = [];
+  const authCodeVariants = valueVariants(payload.authCode);
+  const cardPanVariants = valueVariants(payload.cardPan);
+  const txStatusVariants = valueVariants(payload.transactionStatus);
+  for (const { keyKind, key } of keysToTry) {
+    for (const amount of amountVariants) {
+      for (const reasonCode of reasonCodeVariants) {
+        const shortSource = [merchantAccountFromCallback, orderReference, amount, currency].join(";");
+        const short = signHmacMd5(shortSource, key).toLowerCase();
+        expectedPrefixes.push(short.slice(0, 10));
+        candidates.push({ keyKind, variant: "short", source: shortSource, expectedPrefix: short.slice(0, 10) });
+        for (const ac of authCodeVariants) {
+          const invoiceWithAuthSource = [merchantAccountFromCallback, orderReference, amount, currency, ac].join(";");
+          const invoiceWithAuth = signHmacMd5(
+            invoiceWithAuthSource,
+            key,
+          ).toLowerCase();
+          expectedPrefixes.push(invoiceWithAuth.slice(0, 10));
+          candidates.push({
+            keyKind,
+            variant: "invoiceWithAuth",
+            source: invoiceWithAuthSource,
+            expectedPrefix: invoiceWithAuth.slice(0, 10),
+          });
+          for (const cp of cardPanVariants) {
+            for (const tx of txStatusVariants) {
+              const fullSource = [merchantAccountFromCallback, orderReference, amount, currency, ac, cp, tx, reasonCode].join(";");
+              const full = signHmacMd5(
+                fullSource,
+                key,
+              ).toLowerCase();
+              expectedPrefixes.push(full.slice(0, 10));
+              candidates.push({ keyKind, variant: "full", source: fullSource, expectedPrefix: full.slice(0, 10) });
+            }
+          }
+        }
+      }
     }
   }
 
   return {
     providedPrefix: provided.slice(0, 10),
+    provided,
     expectedPrefixes: Array.from(new Set(expectedPrefixes)).slice(0, 8),
+    candidates: candidates.slice(0, 80),
     merchantAccountFromCallback,
     merchantAccountFromEnv,
     fields: {

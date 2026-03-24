@@ -146,8 +146,20 @@ function normalizeCallbackPayload(input: unknown): Record<string, any> {
 
 export default {
   async wayforpayCallback(ctx: any) {
+    const debugLogsEnabled = String(process.env.WAYFORPAY_DEBUG_LOGS || "").toLowerCase() === "true";
     const payload = normalizeCallbackPayload(ctx.request?.body);
     const bodyKeys = ctx.request?.body && typeof ctx.request.body === "object" ? Object.keys(ctx.request.body) : [];
+    if (debugLogsEnabled) {
+      const reqMeta = {
+        method: ctx.request?.method,
+        url: ctx.request?.url,
+        contentType: String(ctx.request?.headers?.["content-type"] || ""),
+        userAgent: String(ctx.request?.headers?.["user-agent"] || ""),
+        ip: String(ctx.request?.headers?.["x-forwarded-for"] || ctx.request?.ip || ""),
+      };
+      strapi.log.info(`[wfp-callback] inbound meta=${JSON.stringify(reqMeta)} bodyKeys=${JSON.stringify(bodyKeys).slice(0, 300)}`);
+      strapi.log.info(`[wfp-callback] inbound payload=${JSON.stringify(payload).slice(0, 2000)}`);
+    }
     const orderReference = String(payload.orderReference || "");
     const transactionStatus = String(payload.transactionStatus || "");
     const reason = String(payload.reason || "");
@@ -180,11 +192,18 @@ export default {
         strapi.log.warn(
           `[wfp-callback] rejected: invalid merchantSignature orderReference=${orderReference} merchantAccountCb=${debug.merchantAccountFromCallback} merchantAccountEnv=${debug.merchantAccountFromEnv} providedPrefix=${debug.providedPrefix} expectedPrefixes=${debug.expectedPrefixes.join(",")} txStatus=${debug.fields.transactionStatus} amount=${debug.fields.amountRaw} currency=${debug.fields.currency} reasonCode=${debug.fields.reasonCodeRaw} payload=${callbackPayloadPreview}`,
         );
+        if (debugLogsEnabled) {
+          strapi.log.warn(
+            `[wfp-callback] signature candidates provided=${debug.provided} candidates=${JSON.stringify(debug.candidates).slice(0, 6000)}`,
+          );
+        }
         return ctx.badRequest("Invalid merchantSignature");
       }
-      strapi.log.warn(
-        `[wfp-callback] invalid merchantSignature ignored in non-production orderReference=${orderReference}`,
-      );
+      if (process.env.NODE_ENV !== "production") {
+        strapi.log.warn(
+          `[wfp-callback] invalid merchantSignature ignored in non-production orderReference=${orderReference}`,
+        );
+      }
     }
 
     const parsed = parseOrderReference(orderReference);
