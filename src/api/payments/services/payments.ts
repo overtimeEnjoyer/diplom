@@ -114,25 +114,46 @@ export function parseOrderReference(orderReference: string): { kind: AccessKind;
   return { kind: maybeKind, userId };
 }
 
-function callbackSignatureSource(payload: Record<string, any>): string {
-  const merchantAccount = String(payload.merchantAccount ?? "");
-  const orderReference = String(payload.orderReference ?? "");
-  const amount = String(payload.amount ?? "");
-  const currency = String(payload.currency ?? "");
-  const authCode = String(payload.authCode ?? "");
-  const cardPan = String(payload.cardPan ?? "");
-  const transactionStatus = String(payload.transactionStatus ?? "");
-  const reasonCode = String(payload.reasonCode ?? "");
-  return [merchantAccount, orderReference, amount, currency, authCode, cardPan, transactionStatus, reasonCode].join(";");
-}
-
 export function verifyWayForPayCallbackSignature(payload: Record<string, any>): boolean {
   const { merchantSecretKey } = requirePaymentConfig();
   const provided = String(payload.merchantSignature ?? "").trim().toLowerCase();
   if (!provided) return false;
 
-  const expected = signHmacMd5(callbackSignatureSource(payload), merchantSecretKey);
-  return provided === expected.toLowerCase();
+  const merchantAccount = String(payload.merchantAccount ?? "");
+  const orderReference = String(payload.orderReference ?? "");
+  const amountRaw = payload.amount;
+  const currency = String(payload.currency ?? "");
+  const authCode = String(payload.authCode ?? "");
+  const cardPan = String(payload.cardPan ?? "");
+  const transactionStatus = String(payload.transactionStatus ?? "");
+  const reasonCodeRaw = payload.reasonCode;
+
+  // WayForPay callbacks can represent numeric fields differently (e.g. "1", "1.00", 1).
+  // We accept equivalent variants to avoid false negative signature validation.
+  const amountVariants = new Set<string>();
+  amountVariants.add(String(amountRaw ?? ""));
+  const amountAsNumber = Number(amountRaw);
+  if (Number.isFinite(amountAsNumber)) {
+    amountVariants.add(amountAsNumber.toString());
+    amountVariants.add(amountAsNumber.toFixed(2));
+  }
+
+  const reasonCodeVariants = new Set<string>();
+  reasonCodeVariants.add(String(reasonCodeRaw ?? ""));
+  const reasonAsNumber = Number(reasonCodeRaw);
+  if (Number.isFinite(reasonAsNumber)) {
+    reasonCodeVariants.add(reasonAsNumber.toString());
+  }
+
+  for (const amount of amountVariants) {
+    for (const reasonCode of reasonCodeVariants) {
+      const source = [merchantAccount, orderReference, amount, currency, authCode, cardPan, transactionStatus, reasonCode].join(";");
+      const expected = signHmacMd5(source, merchantSecretKey).toLowerCase();
+      if (provided === expected) return true;
+    }
+  }
+
+  return false;
 }
 
 export function buildWayForPayCallbackAck(orderReference: string): { orderReference: string; status: "accept"; time: number; signature: string } {
