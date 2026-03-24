@@ -134,7 +134,7 @@ export function parseOrderReference(orderReference: string): { kind: AccessKind;
 }
 
 export function verifyWayForPayCallbackSignature(payload: Record<string, any>): boolean {
-  const { merchantSecretKey, merchantPassword } = requirePaymentConfig();
+  const { merchantSecretKey, merchantPassword, merchantDomainName } = requirePaymentConfig();
   const provided = String(payload.merchantSignature ?? "").trim().toLowerCase();
   if (!provided) return false;
   const keysToTry = [merchantSecretKey, merchantPassword].filter((k): k is string => typeof k === "string" && k.length > 0);
@@ -169,6 +169,12 @@ export function verifyWayForPayCallbackSignature(payload: Record<string, any>): 
   const authCodeVariants = valueVariants(payload.authCode);
   const cardPanVariants = valueVariants(payload.cardPan);
   const txStatusVariants = valueVariants(payload.transactionStatus);
+  const parsedRef = parseOrderReference(orderReference);
+  const refParts = orderReference.split("|");
+  const refTimestampMsRaw =
+    refParts.find((p) => /^\d{12,}$/.test(p)) ||
+    "";
+  const refTimestampSec = refTimestampMsRaw ? Math.floor(Number(refTimestampMsRaw) / 1000) : NaN;
 
   for (const key of keysToTry) {
     for (const amount of amountVariants) {
@@ -181,6 +187,16 @@ export function verifyWayForPayCallbackSignature(payload: Record<string, any>): 
           // Invoice callback minimal format with authCode.
           const expectedInvoiceWithAuth = makeExpected([merchantAccount, orderReference, amount, currency, ac], key);
           if (provided === expectedInvoiceWithAuth) return true;
+
+          // Some WayForPay flows return signature equal to CREATE_INVOICE request signature.
+          if (parsedRef && Number.isFinite(refTimestampSec) && refTimestampSec > 0) {
+            const name = productLabel(parsedRef.kind);
+            const expectedCreateInvoice = makeExpected(
+              [merchantAccount, merchantDomainName, orderReference, String(refTimestampSec), amount, currency, name, "1", amount],
+              key,
+            );
+            if (provided === expectedCreateInvoice) return true;
+          }
 
           for (const cp of cardPanVariants) {
             for (const tx of txStatusVariants) {
@@ -203,7 +219,7 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
   expectedPrefixes: string[];
   candidates: Array<{
     keyKind: "secret" | "password";
-    variant: "short" | "invoiceWithAuth" | "full";
+    variant: "short" | "invoiceWithAuth" | "full" | "createInvoiceRequest";
     source: string;
     expectedPrefix: string;
   }>;
@@ -220,7 +236,7 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
     reasonCodeRaw: string;
   };
 } {
-  const { merchantSecretKey, merchantPassword, merchantAccount: merchantAccountFromEnv } = requirePaymentConfig();
+  const { merchantSecretKey, merchantPassword, merchantDomainName, merchantAccount: merchantAccountFromEnv } = requirePaymentConfig();
   const provided = String(payload.merchantSignature ?? "").trim().toLowerCase();
   const keysToTry = [
     { keyKind: "secret" as const, key: merchantSecretKey },
@@ -253,13 +269,19 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
   const expectedPrefixes: string[] = [];
   const candidates: Array<{
     keyKind: "secret" | "password";
-    variant: "short" | "invoiceWithAuth" | "full";
+    variant: "short" | "invoiceWithAuth" | "full" | "createInvoiceRequest";
     source: string;
     expectedPrefix: string;
   }> = [];
   const authCodeVariants = valueVariants(payload.authCode);
   const cardPanVariants = valueVariants(payload.cardPan);
   const txStatusVariants = valueVariants(payload.transactionStatus);
+  const parsedRef = parseOrderReference(orderReference);
+  const refParts = orderReference.split("|");
+  const refTimestampMsRaw =
+    refParts.find((p) => /^\d{12,}$/.test(p)) ||
+    "";
+  const refTimestampSec = refTimestampMsRaw ? Math.floor(Number(refTimestampMsRaw) / 1000) : NaN;
   for (const { keyKind, key } of keysToTry) {
     for (const amount of amountVariants) {
       for (const reasonCode of reasonCodeVariants) {
@@ -280,6 +302,29 @@ export function getWayForPaySignatureDebug(payload: Record<string, any>): {
             source: invoiceWithAuthSource,
             expectedPrefix: invoiceWithAuth.slice(0, 10),
           });
+
+          if (parsedRef && Number.isFinite(refTimestampSec) && refTimestampSec > 0) {
+            const name = productLabel(parsedRef.kind);
+            const createInvoiceSource = [
+              merchantAccountFromCallback,
+              merchantDomainName,
+              orderReference,
+              String(refTimestampSec),
+              amount,
+              currency,
+              name,
+              "1",
+              amount,
+            ].join(";");
+            const createInvoiceExpected = signHmacMd5(createInvoiceSource, key).toLowerCase();
+            expectedPrefixes.push(createInvoiceExpected.slice(0, 10));
+            candidates.push({
+              keyKind,
+              variant: "createInvoiceRequest",
+              source: createInvoiceSource,
+              expectedPrefix: createInvoiceExpected.slice(0, 10),
+            });
+          }
           for (const cp of cardPanVariants) {
             for (const tx of txStatusVariants) {
               const fullSource = [merchantAccountFromCallback, orderReference, amount, currency, ac, cp, tx, reasonCode].join(";");
