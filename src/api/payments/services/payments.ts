@@ -24,11 +24,11 @@ const WFP_PAY_OFFLINE_URL = "https://secure.wayforpay.com/pay?behavior=offline";
 const WFP_PAY_FALLBACK_URL = "https://secure.wayforpay.com/pay";
 
 function requirePaymentConfig(): PaymentConfig {
-  const merchantAccount = process.env.WAYFORPAY_MERCHANT_ACCOUNT || "";
-  const merchantDomainName = process.env.WAYFORPAY_MERCHANT_DOMAIN_NAME || "";
-  const merchantSecretKey = process.env.WAYFORPAY_MERCHANT_SECRET_KEY || "";
-  const returnUrl = process.env.WAYFORPAY_RETURN_URL || "";
-  const serviceUrl = process.env.WAYFORPAY_SERVICE_URL || "";
+  const merchantAccount = (process.env.WAYFORPAY_MERCHANT_ACCOUNT || "").trim();
+  const merchantDomainName = (process.env.WAYFORPAY_MERCHANT_DOMAIN_NAME || "").trim();
+  const merchantSecretKey = (process.env.WAYFORPAY_MERCHANT_SECRET_KEY || "").trim();
+  const returnUrl = (process.env.WAYFORPAY_RETURN_URL || "").trim();
+  const serviceUrl = (process.env.WAYFORPAY_SERVICE_URL || "").trim();
 
   if (!merchantAccount || !merchantDomainName || !merchantSecretKey || !returnUrl || !serviceUrl) {
     throw new Error("WAYFORPAY env config is incomplete");
