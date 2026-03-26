@@ -97,6 +97,12 @@
       "default": false,
       "description": "Доступ до тарифу Premium (увімкнути після оплати)"
     },
+    "userMethodSections": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::user-method-section.user-method-section",
+      "mappedBy": "user"
+    },
     "makFavoriteCardIds": {
       "type": "json",
       "default": null,

@@ -14,10 +14,10 @@ type PaymentConfig = {
 };
 
 const PRICE_BY_ACCESS: Record<AccessKind, number> = {
-  "mak-cards": 1490,
-  medium: 2990,
-  premium: 4990,
-  section: 1490,
+  "mak-cards": 1,
+  medium: 1,
+  premium: 1,
+  section: 1,
 };
 
 const CURRENCY = "UAH";
@@ -461,44 +461,57 @@ export async function createAccessPayment(
   };
 }
 
-async function grantMediumAccess(userId: number, userDocId: string): Promise<void> {
+async function grantMediumAccess(userId: number, userDocId: string, options?: { skipUserFlagUpdate?: boolean }): Promise<void> {
   const knex = strapi.db?.connection;
-  if (knex) {
-    try {
-      await knex("up_users").where("id", userId).update({ is_medium: true });
-    } catch {
+  if (!options?.skipUserFlagUpdate) {
+    if (knex) {
+      try {
+        await knex("up_users").where("id", userId).update({ is_medium: true });
+      } catch {
+        await strapi.query("plugin::users-permissions.user").update({
+          where: { id: userId },
+          data: { isMedium: true },
+        });
+      }
+    } else {
       await strapi.query("plugin::users-permissions.user").update({
         where: { id: userId },
         data: { isMedium: true },
       });
     }
-  } else {
-    await strapi.query("plugin::users-permissions.user").update({
-      where: { id: userId },
-      data: { isMedium: true },
-    });
   }
 
   const allMethodSections = await strapi.entityService.findMany("api::method-section.method-section", {
-    fields: ["id", "slug"],
+    fields: ["id", "slug", "documentId"],
   } as any);
-  const methodSectionDocIds = (allMethodSections as any[]).map((ms) => ms?.documentId).filter((x) => typeof x === "string");
-  if (methodSectionDocIds.length === 0) return;
+  const methodSections = (allMethodSections as any[])
+    .map((ms) => ({
+      id: Number(ms?.id),
+      documentId: typeof ms?.documentId === "string" ? ms.documentId : "",
+    }))
+    .filter((x) => Number.isFinite(x.id) && x.id > 0 && x.documentId.length > 0);
+  if (methodSections.length === 0) return;
 
   const existing = await strapi.entityService.findMany("api::user-method-section.user-method-section", {
-    filters: { user: { documentId: userDocId } },
-    populate: { method_section: { fields: ["documentId"] } },
+    filters: { user: { id: userId } },
+    populate: { method_section: { fields: ["id", "documentId"] } },
   } as any);
 
-  const existingByMethodDocId = new Map<string, { entryId: number; isPaid: boolean }>();
+  const existingByMethodId = new Map<number, { entryId: number; isPaid: boolean }>();
   for (const x of existing as any[]) {
-    const docId = x?.method_section?.documentId;
-    if (typeof docId !== "string") continue;
-    existingByMethodDocId.set(docId, { entryId: x.id as number, isPaid: x.isPaid === true });
+    // Cleanup broken rows that have no linked method section.
+    if (!x?.method_section?.id) {
+      await strapi.entityService.delete("api::user-method-section.user-method-section", x.id);
+      continue;
+    }
+    const methodId = Number(x?.method_section?.id);
+    if (!Number.isFinite(methodId) || methodId <= 0) continue;
+    existingByMethodId.set(methodId, { entryId: x.id as number, isPaid: x.isPaid === true });
   }
 
-  for (const methodSectionDocId of methodSectionDocIds) {
-    const existingEntry = existingByMethodDocId.get(methodSectionDocId);
+  for (const methodSection of methodSections) {
+    const methodSectionId = methodSection.id;
+    const existingEntry = existingByMethodId.get(methodSectionId);
     if (existingEntry) {
       if (!existingEntry.isPaid) {
         await strapi.entityService.update("api::user-method-section.user-method-section", existingEntry.entryId, {
@@ -510,36 +523,39 @@ async function grantMediumAccess(userId: number, userDocId: string): Promise<voi
 
     await strapi.entityService.create("api::user-method-section.user-method-section", {
       data: {
-        user: { connect: [userDocId] },
-        method_section: { connect: [methodSectionDocId] },
+        user: userId,
+        method_section: { connect: [methodSection.documentId] },
         isPaid: true,
       } as any,
     });
   }
 }
 
-async function grantPremiumAccess(userId: number, userDocId: string): Promise<void> {
+async function grantPremiumAccess(userId: number, userDocId: string, options?: { skipUserFlagUpdate?: boolean }): Promise<void> {
   const knex = strapi.db?.connection;
-  if (knex) {
-    try {
-      await knex("up_users").where("id", userId).update({ mak_cards_access: true, is_premium: true });
-    } catch {
+  if (!options?.skipUserFlagUpdate) {
+    if (knex) {
+      try {
+        await knex("up_users").where("id", userId).update({ mak_cards_access: true, is_premium: true });
+      } catch {
+        await strapi.query("plugin::users-permissions.user").update({
+          where: { id: userId },
+          data: { makCardsAccess: true, isPremium: true } as any,
+        });
+      }
+    } else {
       await strapi.query("plugin::users-permissions.user").update({
         where: { id: userId },
         data: { makCardsAccess: true, isPremium: true } as any,
       });
     }
-  } else {
-    await strapi.query("plugin::users-permissions.user").update({
-      where: { id: userId },
-      data: { makCardsAccess: true, isPremium: true } as any,
-    });
   }
 
-  await grantMediumAccess(userId, userDocId);
+  await grantMediumAccess(userId, userDocId, options);
 }
 
-async function grantMakCardsAccess(userId: number): Promise<void> {
+async function grantMakCardsAccess(userId: number, options?: { skipUserFlagUpdate?: boolean }): Promise<void> {
+  if (options?.skipUserFlagUpdate) return;
   const knex = strapi.db?.connection;
   if (knex) {
     try {
@@ -561,11 +577,8 @@ async function grantMakCardsAccess(userId: number): Promise<void> {
 async function grantSingleSectionAccess(userId: number, methodSectionId: number): Promise<void> {
   const user = await strapi.query("plugin::users-permissions.user").findOne({ where: { id: userId } });
   if (!user) return;
-  const userDocId = (user as any).documentId as string | undefined;
-  if (!userDocId) return;
-
   const methodSection = await strapi.entityService.findOne("api::method-section.method-section", methodSectionId, {
-    fields: ["id", "slug", "title"],
+    fields: ["id", "slug", "title", "documentId"],
   } as any);
   if (!methodSection) return;
   const methodSectionDocId = (methodSection as any).documentId as string | undefined;
@@ -573,8 +586,8 @@ async function grantSingleSectionAccess(userId: number, methodSectionId: number)
 
   const existing = await strapi.entityService.findMany("api::user-method-section.user-method-section", {
     filters: {
-      user: { documentId: userDocId },
-      method_section: { documentId: methodSectionDocId },
+      user: { id: userId },
+      method_section: { id: methodSectionId },
     },
     limit: 1,
   } as any);
@@ -591,36 +604,59 @@ async function grantSingleSectionAccess(userId: number, methodSectionId: number)
 
   await strapi.entityService.create("api::user-method-section.user-method-section", {
     data: {
-      user: { connect: [userDocId] },
+      user: userId,
       method_section: { connect: [methodSectionDocId] },
       isPaid: true,
     } as any,
   });
 }
 
-export async function applyPaidAccess(kind: AccessKind, userId: number): Promise<void> {
+export async function applyPaidAccess(kind: AccessKind, userId: number, options?: { skipUserFlagUpdate?: boolean }): Promise<void> {
   const user = await strapi.query("plugin::users-permissions.user").findOne({ where: { id: userId } });
   if (!user) return;
   const userDocId = (user as any).documentId as string | undefined;
 
   if (kind === "mak-cards") {
-    await grantMakCardsAccess(userId);
+    await grantMakCardsAccess(userId, options);
     return;
   }
 
   if (!userDocId) return;
   if (kind === "medium") {
-    await grantMediumAccess(userId, userDocId);
+    await grantMediumAccess(userId, userDocId, options);
     return;
   }
   if (kind === "section") {
     return;
   }
-  await grantPremiumAccess(userId, userDocId);
+  await grantPremiumAccess(userId, userDocId, options);
 }
 
 export async function applyPaidSectionAccess(userId: number, methodSectionId: number): Promise<void> {
   await grantSingleSectionAccess(userId, methodSectionId);
+}
+
+export async function revokeAllMethodicsAccess(userId: number): Promise<void> {
+  await cleanupBrokenUserMethodSectionRows();
+
+  const existing = await strapi.entityService.findMany("api::user-method-section.user-method-section", {
+    filters: { user: { id: userId } },
+    fields: ["id"],
+  } as any);
+
+  for (const entry of existing as any[]) {
+    await strapi.entityService.delete("api::user-method-section.user-method-section", entry.id);
+  }
+}
+
+export async function cleanupBrokenUserMethodSectionRows(): Promise<void> {
+  const knex = strapi.db?.connection;
+  if (!knex) return;
+  try {
+    await knex("user_method_sections").whereNull("user_id").orWhereNull("method_section_id").del();
+  } catch {
+    // Ignore cleanup failures; main flows should keep working.
+  }
 }
 
 export function isSuccessTransactionStatus(status: string): boolean {
@@ -679,20 +715,11 @@ export async function checkAccessStatus(kind: AccessKind, userId: number, method
   }
 
   if (!methodSectionId) return false;
-  const userDocId = (user as any).documentId as string | undefined;
-  if (!userDocId) return false;
-
-  const methodSection = await strapi.entityService.findOne("api::method-section.method-section", methodSectionId, {
-    fields: ["id", "slug"],
-  } as any);
-  if (!methodSection) return false;
-  const methodSectionDocId = (methodSection as any).documentId as string | undefined;
-  if (!methodSectionDocId) return false;
 
   const existing = await strapi.entityService.findMany("api::user-method-section.user-method-section", {
     filters: {
-      user: { documentId: userDocId },
-      method_section: { documentId: methodSectionDocId },
+      user: { id: userId },
+      method_section: { id: methodSectionId },
       isPaid: true,
     },
     limit: 1,

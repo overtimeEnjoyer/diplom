@@ -83,7 +83,7 @@ export default factories.createCoreController(
         {
           filters: {
             user: {
-              documentId: (user as any).documentId,
+              id: (user as any).id,
             },
           },
           populate: {
