@@ -29,7 +29,6 @@ export default [
   'strapi::poweredBy',
   'strapi::logger',
   'strapi::query',
-  'global::single-session-auth',
   'strapi::body',
   'strapi::session',
   'strapi::favicon',
