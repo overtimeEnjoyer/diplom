@@ -14,10 +14,10 @@ type PaymentConfig = {
 };
 
 const PRICE_BY_ACCESS: Record<AccessKind, number> = {
-  "mak-cards": 1490,
-  medium: 2990,
-  premium: 4990,
-  section: 1490,
+  "mak-cards": 1890,
+  medium: 3990,
+  premium: 4490,
+  section: 1890,
 };
 
 const CURRENCY = "UAH";

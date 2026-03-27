@@ -3,6 +3,44 @@
 const bcrypt = require('bcryptjs');
 
 module.exports = (plugin) => {
+  const toSessionVersion = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.floor(parsed);
+  };
+
+  const rotateSessionAndIssueJwt = async (userId) => {
+    const user = await strapi.query('plugin::users-permissions.user').findOne({
+      where: { id: userId },
+    });
+    if (!user) return null;
+    const nextSessionVersion = toSessionVersion(user.sessionVersion) + 1;
+    await strapi.query('plugin::users-permissions.user').update({
+      where: { id: userId },
+      data: { sessionVersion: nextSessionVersion },
+    });
+    const jwt = strapi.plugin('users-permissions').service('jwt').issue({
+      id: userId,
+      sv: nextSessionVersion,
+    });
+    return { jwt };
+  };
+
+  const originalAuthCallback = plugin.controllers.auth.callback;
+  plugin.controllers.auth.callback = async (ctx) => {
+    await originalAuthCallback(ctx);
+
+    if (typeof ctx.path !== 'string' || !ctx.path.endsWith('/auth/local')) return;
+
+    const userId = ctx.body?.user?.id;
+    const hasJwt = typeof ctx.body?.jwt === 'string' && ctx.body.jwt.length > 0;
+    if (!userId || !hasJwt) return;
+
+    const session = await rotateSessionAndIssueJwt(Number(userId));
+    if (!session) return;
+    ctx.body.jwt = session.jwt;
+  };
+
   // updateProfile kept for compatibility; /auth/profile is served by api::auth-code with auth: false + JWT in controller
   plugin.controllers.user.updateProfile = async (ctx) => {
     const user = ctx.state.user;

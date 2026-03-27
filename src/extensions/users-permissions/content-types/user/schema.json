@@ -107,6 +107,12 @@
       "type": "json",
       "default": null,
       "description": "Улюблені МАК-картки: масив id, напр. [\"card-1\", \"card-3\"]"
+    },
+    "sessionVersion": {
+      "type": "integer",
+      "default": 0,
+      "private": true,
+      "description": "Версія активної сесії для політики один пристрій = одна сесія"
     }
   }
 }

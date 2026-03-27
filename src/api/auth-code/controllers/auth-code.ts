@@ -20,6 +20,19 @@ function hashCode(code: string) {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
+function toSessionVersion(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+}
+
+function issueSessionJwt(userId: number, sessionVersion: number): string {
+  return strapi.plugin('users-permissions').service('jwt').issue({
+    id: userId,
+    sv: sessionVersion,
+  });
+}
+
 /** Блокування по user.id для toggle/set favorites — щоб паралельні запити не перезаписували список. */
 const makFavoritesLocks = new Map<number, Promise<unknown>>();
 function withMakFavoritesLock<T>(userId: number, fn: () => Promise<T>): Promise<T> {
@@ -99,11 +112,12 @@ export default {
         // SQLite/Knex не завжди коректно біндіть json-дефолт `[]` (масив),
         // тому явно ставимо `null` — для першого рендеру favorites це норм.
         makFavoriteCardIds: null,
+        sessionVersion: 1,
         role: defaultRole.id,
       },
     });
 
-    const jwt = strapi.plugin('users-permissions').service('jwt').issue({ id: user.id });
+    const jwt = issueSessionJwt(user.id, 1);
     const sanitizedUser = {
       id: user.id,
       documentId: user.documentId,
@@ -185,16 +199,18 @@ export default {
       return ctx.badRequest('Invalid code');
     }
 
+    const nextSessionVersion = toSessionVersion((user as { sessionVersion?: unknown }).sessionVersion) + 1;
     await strapi.query('plugin::users-permissions.user').update({
       where: { id: user.id },
       data: {
         confirmed: true,
         emailConfirmationCode: null,
         emailConfirmationExpires: null,
+        sessionVersion: nextSessionVersion,
       },
     });
 
-    const jwt = strapi.plugin('users-permissions').service('jwt').issue({ id: user.id });
+    const jwt = issueSessionJwt(user.id, nextSessionVersion);
     const sanitizedUser = {
       id: user.id,
       documentId: user.documentId,
@@ -284,12 +300,14 @@ export default {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const nextSessionVersion = toSessionVersion((user as { sessionVersion?: unknown }).sessionVersion) + 1;
     await strapi.query('plugin::users-permissions.user').update({
       where: { id: user.id },
       data: {
         password: hashedPassword,
         passwordResetCode: null,
         passwordResetExpires: null,
+        sessionVersion: nextSessionVersion,
       },
     });
 
