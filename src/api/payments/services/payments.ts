@@ -16,7 +16,7 @@ type PaymentConfig = {
 const PRICE_BY_ACCESS: Record<AccessKind, number> = {
   "mak-cards": 1890,
   medium: 3990,
-  premium: 4490,
+  premium: 4990,
   section: 1890,
 };
 
