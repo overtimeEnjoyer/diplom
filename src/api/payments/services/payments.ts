@@ -17,7 +17,7 @@ const PRICE_BY_ACCESS: Record<AccessKind, number> = {
   "mak-cards": 1890,
   medium: 3990,
   premium: 4990,
-  section: 1890,
+  section: 1,
 };
 
 const CURRENCY = "UAH";
