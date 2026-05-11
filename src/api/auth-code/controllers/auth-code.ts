@@ -12,6 +12,54 @@ const SENDGRID_TEMPLATE_PASSWORD_RESET = 'd-f428088d3f7743fe88ff7c3521e0e782';
 /** SendGrid dynamic template for feedback form email (new design). */
 const SENDGRID_TEMPLATE_FEEDBACK = 'd-d1aee82899404657bedb899dcb8e7c5d';
 
+function getBrevoPasswordResetTemplateId(): number | null {
+  const raw = String(process.env.BREVO_TEMPLATE_PASSWORD_RESET || '').trim();
+  if (!raw) return null;
+  const templateId = Number(raw);
+  return Number.isFinite(templateId) && templateId > 0 ? templateId : null;
+}
+
+async function sendPasswordResetEmail(to: string, code: string): Promise<void> {
+  const brevoApiKey = String(process.env.BREVO_API_KEY || '').trim();
+  const brevoTemplateId = getBrevoPasswordResetTemplateId();
+
+  if (brevoApiKey && brevoTemplateId) {
+    const fromEmail = String(process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_FROM || 'no-reply@example.com').trim();
+    const fromName = String(process.env.BREVO_SENDER_NAME || 'ROK Mental Health').trim();
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'api-key': brevoApiKey,
+      },
+      body: JSON.stringify({
+        sender: {
+          email: fromEmail,
+          name: fromName,
+        },
+        to: [{ email: to }],
+        templateId: brevoTemplateId,
+        params: { code },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = (await response.text()).slice(0, 500);
+      throw new Error(`Brevo API error ${response.status}: ${errorBody}`);
+    }
+    return;
+  }
+
+  await strapi.plugin('email').service('email').send({
+    to,
+    subject: 'Password reset code',
+    templateId: SENDGRID_TEMPLATE_PASSWORD_RESET,
+    dynamicTemplateData: { code },
+  });
+}
+
 function generateCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -236,15 +284,12 @@ export default {
     });
 
     try {
-      await strapi.plugin('email').service('email').send({
-        to: email,
-        subject: 'Password reset code',
-        templateId: SENDGRID_TEMPLATE_PASSWORD_RESET,
-        dynamicTemplateData: { code },
-      });
+      await sendPasswordResetEmail(email, code);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      strapi.log.error(`RequestPasswordCode: email send failed — ${msg}. Check EMAIL_SMTP_HOST, EMAIL_SMTP_PORT, EMAIL_SMTP_USER, EMAIL_SMTP_PASS in .env`);
+      strapi.log.error(
+        `RequestPasswordCode: email send failed — ${msg}. Check BREVO_API_KEY, BREVO_TEMPLATE_PASSWORD_RESET, BREVO_SENDER_EMAIL or fallback email provider envs.`,
+      );
     }
     return ctx.send({ ok: true });
   },
