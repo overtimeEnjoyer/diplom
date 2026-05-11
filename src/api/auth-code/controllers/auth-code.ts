@@ -9,9 +9,6 @@ const CODE_TTL_MS = 10 * 60 * 1000; // 10 min
 /** SendGrid dynamic template for password reset email (new design). */
 const SENDGRID_TEMPLATE_PASSWORD_RESET = 'd-f428088d3f7743fe88ff7c3521e0e782';
 
-/** SendGrid dynamic template for feedback form email (new design). */
-const SENDGRID_TEMPLATE_FEEDBACK = 'd-d1aee82899404657bedb899dcb8e7c5d';
-
 function getBrevoPasswordResetTemplateId(): number | null {
   const raw = String(process.env.BREVO_TEMPLATE_PASSWORD_RESET || '').trim();
   if (!raw) return null;
@@ -617,7 +614,7 @@ export default {
     });
   },
 
-  /** 8. Form зворотного зв'язку: ім'я, повідомлення, email, тариф (опційно). Надсилає лист на FEEDBACK_EMAIL. */
+  /** 8. Form зворотного зв'язку: ім'я, повідомлення, email, тариф (опційно). Зберігає запис у Strapi. */
   async sendFeedback(ctx) {
     const body = ctx.request.body || {};
     const name = typeof body.name === 'string' ? body.name.trim() : '';
@@ -639,32 +636,23 @@ export default {
       return ctx.badRequest('Невірний формат email');
     }
 
-    const to =
-      process.env.FEEDBACK_EMAIL ||
-      process.env.EMAIL_FROM ||
-      'no-reply@example.com';
-
     try {
-      strapi.log.info('Feedback email sending', { to });
-      await strapi.plugin('email').service('email').send({
-        to,
-        replyTo: email,
-        subject: `Зворотний зв'язок: ${name}`,
-        templateId: SENDGRID_TEMPLATE_FEEDBACK,
-        dynamicTemplateData: {
+      await strapi.entityService.create('api::feedback.feedback', {
+        data: {
           name,
           message,
           email,
-          tariff: tariff || '—',
-        },
-      });
+          tariff: tariff || null,
+          isProcessed: false,
+        } as any,
+      } as any);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      strapi.log.error('Feedback email send failed', { to, err: msg });
-      return ctx.internalServerError('Не вдалося надіслати повідомлення. Спробуйте пізніше.');
+      strapi.log.error('Feedback save failed', { err: msg });
+      return ctx.internalServerError('Не вдалося зберегти повідомлення. Спробуйте пізніше.');
     }
 
-    return ctx.send({ ok: true, message: 'Повідомлення надіслано' });
+    return ctx.send({ ok: true, message: 'Повідомлення збережено' });
   },
 };
 

@@ -495,6 +495,46 @@ export interface ApiAuthCodePlaceholder extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiFeedbackFeedback extends Struct.CollectionTypeSchema {
+  collectionName: 'feedbacks';
+  info: {
+    displayName: 'Feedback';
+    pluralName: 'feedbacks';
+    singularName: 'feedback';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    email: Schema.Attribute.Email & Schema.Attribute.Required;
+    isProcessed: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::feedback.feedback'
+    > &
+      Schema.Attribute.Private;
+    message: Schema.Attribute.Text &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMaxLength<{
+        minLength: 10;
+      }>;
+    name: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMaxLength<{
+        minLength: 2;
+      }>;
+    publishedAt: Schema.Attribute.DateTime;
+    tariff: Schema.Attribute.String;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiMethodSectionMethodSection
   extends Struct.CollectionTypeSchema {
   collectionName: 'method_sections';
@@ -1139,6 +1179,7 @@ declare module '@strapi/strapi' {
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
       'api::auth-code.placeholder': ApiAuthCodePlaceholder;
+      'api::feedback.feedback': ApiFeedbackFeedback;
       'api::method-section.method-section': ApiMethodSectionMethodSection;
       'api::method.method': ApiMethodMethod;
       'api::user-method-section.user-method-section': ApiUserMethodSectionUserMethodSection;

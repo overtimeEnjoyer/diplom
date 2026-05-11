@@ -279,7 +279,7 @@ Authorization: Bearer <jwt>
 
 **POST** `/api/feedback`
 
-Надсилання даних форми зворотного зв'язку (ім'я, повідомлення, email, опційно тариф). Лист відправляється на пошту, задану в `FEEDBACK_EMAIL` (або `EMAIL_FROM`) на бекенді. Для відправки потрібен **SendGrid**: у `.env` має бути `SENDGRID_API_KEY`.
+Надсилання даних форми зворотного зв'язку (ім'я, повідомлення, email, опційно тариф). Бекенд зберігає звернення у collection type `Feedback`, після чого його можна переглянути та опрацювати в адмінці Strapi.
 
 **Body:**
 ```json
@@ -302,7 +302,7 @@ Authorization: Bearer <jwt>
 ```json
 {
   "ok": true,
-  "message": "Повідомлення надіслано"
+  "message": "Повідомлення збережено"
 }
 ```
 
@@ -322,7 +322,7 @@ const res = await fetch(`${API_URL}/api/feedback`, {
 });
 ```
 
-**Бекенд (.env):** вказати `FEEDBACK_EMAIL` — куди приходитимуть листи (наприклад `admin@yoursite.com`). Для SendGrid також потрібен `SENDGRID_API_KEY`.
+**Адмінка:** після створення звернення воно з'являється в Strapi у collection type `Feedback`. Поле `isProcessed` можна використовувати для позначення опрацьованих звернень.
 
 ---
 
