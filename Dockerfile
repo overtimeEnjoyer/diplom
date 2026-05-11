@@ -2,7 +2,7 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml .npmrc ./
-RUN npm install -g pnpm
+RUN corepack enable && corepack prepare pnpm@9.14.2 --activate
 RUN pnpm install --frozen-lockfile
 
 COPY . .
