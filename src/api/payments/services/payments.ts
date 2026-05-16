@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { loadPricingSettings } from "../../pricing/pricing-settings";
 
 declare const strapi: any;
 
@@ -12,15 +13,6 @@ type PaymentConfig = {
   returnUrl: string;
   serviceUrl: string;
 };
-
-const PRICE_BY_ACCESS: Record<AccessKind, number> = {
-  "mak-cards": 1890,
-  medium: 3990,
-  premium: 4990,
-  section: 890,
-};
-
-const CURRENCY = "UAH";
 const WFP_PAY_OFFLINE_URL = "https://secure.wayforpay.com/pay?behavior=offline";
 const WFP_PAY_FALLBACK_URL = "https://secure.wayforpay.com/pay";
 
@@ -385,7 +377,8 @@ export async function createAccessPayment(
   paymentData?: Record<string, any>;
 }> {
   const config = requirePaymentConfig();
-  const amount = PRICE_BY_ACCESS[kind];
+  const { prices, currency } = await loadPricingSettings();
+  const amount = prices[kind];
   const orderReference = buildOrderReference(kind, user.id, options?.methodSectionId);
   const orderDate = nowSec();
   const name = productLabel(kind);
@@ -397,7 +390,7 @@ export async function createAccessPayment(
     orderReference,
     orderDate,
     amount,
-    CURRENCY,
+    currency,
     name,
     count,
     amount,
@@ -418,7 +411,7 @@ export async function createAccessPayment(
     orderReference,
     orderDate,
     amount,
-    currency: CURRENCY,
+    currency,
     productName: [name],
     productPrice: [amount],
     productCount: [count],
@@ -430,7 +423,7 @@ export async function createAccessPayment(
     strapi.log.info(
       `[wfp-create] account=${config.merchantAccount} domain=${config.merchantDomainName} keyFp(secret)=${fingerprint(
         config.merchantSecretKey,
-      )} keyFp(password)=${fingerprint(config.merchantPassword || "")} orderReference=${orderReference} amount=${amount} currency=${CURRENCY}`,
+      )} keyFp(password)=${fingerprint(config.merchantPassword || "")} orderReference=${orderReference} amount=${amount} currency=${currency}`,
     );
   }
 
@@ -444,7 +437,7 @@ export async function createAccessPayment(
     if (response.ok) {
       const data = (await response.json()) as { url?: string };
       if (data?.url && typeof data.url === "string") {
-        return { kind, orderReference, amount, currency: CURRENCY, paymentUrl: data.url };
+        return { kind, orderReference, amount, currency, paymentUrl: data.url };
       }
     }
   } catch {
@@ -455,7 +448,7 @@ export async function createAccessPayment(
     kind,
     orderReference,
     amount,
-    currency: CURRENCY,
+    currency,
     paymentUrl: WFP_PAY_FALLBACK_URL,
     paymentData,
   };
@@ -663,12 +656,14 @@ export function isSuccessTransactionStatus(status: string): boolean {
   return status === "Approved";
 }
 
-export function expectedPrice(kind: AccessKind): number {
-  return PRICE_BY_ACCESS[kind];
+export async function expectedPrice(kind: AccessKind): Promise<number> {
+  const { prices } = await loadPricingSettings();
+  return prices[kind];
 }
 
-export function expectedCurrency(): string {
-  return CURRENCY;
+export async function expectedCurrency(): Promise<string> {
+  const { currency } = await loadPricingSettings();
+  return currency;
 }
 
 export async function checkAccessStatus(kind: AccessKind, userId: number, methodSectionId?: number): Promise<boolean> {

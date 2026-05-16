@@ -1,3 +1,4 @@
+import { ensureDefaultPricing } from "./api/pricing/pricing-settings";
 import { applyPaidAccess, cleanupBrokenUserMethodSectionRows, revokeAllMethodicsAccess } from "./api/payments/services/payments";
 
 declare const strapi: any;
@@ -30,6 +31,14 @@ export default {
   register() {},
 
   async bootstrap() {
+    try {
+      await ensureDefaultPricing();
+    } catch (error) {
+      strapi.log.warn(
+        `[pricing] failed to seed defaults: ${String((error as Error)?.message || error)}`,
+      );
+    }
+
     const inProgress = new Set<number>();
 
     strapi.db.lifecycles.subscribe({

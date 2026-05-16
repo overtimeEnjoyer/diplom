@@ -1,5 +1,7 @@
 # Auth API — інструкція для фронтенду
 
+> **Ціни для UI:** як отримувати суми тарифів і розділів з бекенду — [FRONTEND_PRICING_API.md](./FRONTEND_PRICING_API.md).
+
 ## Як підключитися до бекенду
 
 ### 1. URL бекенду
@@ -21,6 +23,8 @@ VITE_API_URL=http://localhost:1337
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:1337';
 // запити: `${API_URL}/api/auth/register`, `${API_URL}/api/auth/local` тощо
 ```
+
+**Не додавайте `/api` в кінець env.** Якщо `VITE_API_URL=http://localhost:1337/api`, тоді шлях має бути `/pricing`, а не `/api/pricing` (інакше вийде `/api/api/...` і **404**).
 
 ### 2. Що має бути зроблено на бекенді
 
@@ -543,6 +547,7 @@ function blocksToPlainText(blocks: any[] | null | undefined): string {
 | Розділ + його методики     | GET    | /api/method-sections?filters[slug][$eq]={slug}&populate=methods | Публічний (Public role: find) |
 | Методики за розділом       | GET    | /api/methods?filters[method_section][slug][$eq]={slug} | Публічний (Public role: find) |
 | Окрема методика за slug    | GET    | /api/methods?filters[slug][$eq]={methodSlug}    | Публічний (Public role: find) |
+| Ціни (тарифи, розділ, МАК) | GET    | /api/pricing                                    | Публічний (Public role: Pricing → find) — [деталі](./FRONTEND_PRICING_API.md) |
 | Ініціалізація оплати одного розділу | POST   | /api/user-method-sections/assign               | JWT  |
 | Мої розділи методик        | GET    | /api/user-method-sections/me                    | JWT  |
 | Активація тарифу Medium   | POST   | /api/tariffs/medium/activate                     | JWT  |
@@ -656,7 +661,7 @@ export async function toggleMakFavorite(jwt: string, cardId: string) {
 - **Auth:** `Authorization: Bearer <jwt>`
 - **Body:** порожнє тіло або `{}` (бекенд не читає поля)
 
-**Що відбувається:** бекенд ініціалізує платіж WayForPay (сума `1 UAH`) і повертає `paymentUrl` для редіректу. Доступ (`isMedium`, `user-method-sections.isPaid=true`) вмикається тільки після успішного callback від WayForPay на `POST /api/payments/wayforpay-callback`. У `returnUrl` бекенд автоматично додає `?kind=medium`.
+**Що відбувається:** бекенд ініціалізує платіж WayForPay (сума з адмінки — `mediumPrice`, див. [FRONTEND_PRICING_API.md](./FRONTEND_PRICING_API.md)) і повертає `paymentUrl` для редіректу. Доступ (`isMedium`, `user-method-sections.isPaid=true`) вмикається тільки після успішного callback від WayForPay на `POST /api/payments/wayforpay-callback`. У `returnUrl` бекенд автоматично додає `?kind=medium`.
 
 **Успіх (200):** повертає дані для оплати:
 ```json
@@ -665,11 +670,13 @@ export async function toggleMakFavorite(jwt: string, cardId: string) {
   "access": "medium",
   "kind": "medium",
   "orderReference": "RKM|medium|123|1710000000000|abc123",
-  "amount": 1,
+  "amount": 3990,
   "currency": "UAH",
   "paymentUrl": "https://secure.wayforpay.com/page?..."
 }
 ```
+
+(`amount` — актуальна ціна з **Content Manager → Ціни**, не захардкоджуйте на фронті.)
 
 **Приклад з фронту (TypeScript):**
 ```ts
@@ -701,7 +708,7 @@ export async function activateMediumTariff(jwt: string) {
 - **Auth:** `Authorization: Bearer <jwt>`
 - **Body:** порожнє тіло або `{}` (бекенд не читає поля)
 
-**Що відбувається:** бекенд ініціалізує платіж WayForPay (сума `1 UAH`) і повертає `paymentUrl` для редіректу. Доступ (`isPremium`, `makCardsAccess=true`, `user-method-sections.isPaid=true`) вмикається тільки після успішного callback від WayForPay на `POST /api/payments/wayforpay-callback`. У `returnUrl` бекенд автоматично додає `?kind=premium`.
+**Що відбувається:** бекенд ініціалізує платіж WayForPay (сума з адмінки — `premiumPrice`, див. [FRONTEND_PRICING_API.md](./FRONTEND_PRICING_API.md)) і повертає `paymentUrl` для редіректу. Доступ (`isPremium`, `makCardsAccess=true`, `user-method-sections.isPaid=true`) вмикається тільки після успішного callback від WayForPay на `POST /api/payments/wayforpay-callback`. У `returnUrl` бекенд автоматично додає `?kind=premium`.
 
 **Успіх (200):** повертає дані для оплати:
 ```json
@@ -710,7 +717,7 @@ export async function activateMediumTariff(jwt: string) {
   "access": "premium",
   "kind": "premium",
   "orderReference": "RKM|premium|123|1710000000000|abc123",
-  "amount": 1,
+  "amount": 4990,
   "currency": "UAH",
   "paymentUrl": "https://secure.wayforpay.com/page?..."
 }
@@ -758,7 +765,7 @@ export async function activatePremiumTariff(jwt: string) {
 `categorySlug` і `methodicSlug` — опційні. Якщо передані, бекенд додасть їх у `returnUrl`:
 `... ?kind=section&category=<categorySlug>&methodic=<methodicSlug>`.
 
-Бекенд ініціалізує платіж WayForPay на `1 UAH` для конкретного `methodSectionId` і повертає `paymentUrl`.
+Бекенд ініціалізує платіж WayForPay на суму `sectionPrice` (див. [FRONTEND_PRICING_API.md](./FRONTEND_PRICING_API.md)) для конкретного `methodSectionId` і повертає `paymentUrl`.
 Після успішного callback від WayForPay бекенд створює/оновлює `user-method-section` і виставляє `isPaid=true` тільки для цього розділу.
 
 **Приклад з фронту (TypeScript, React / Next / Vite):**

@@ -1,0 +1,46 @@
+{
+  "kind": "singleType",
+  "collectionName": "pricings",
+  "info": {
+    "singularName": "pricing",
+    "pluralName": "pricings",
+    "displayName": "Ціни"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "makCardsPrice": {
+      "type": "integer",
+      "required": true,
+      "min": 1,
+      "default": 1890
+    },
+    "mediumPrice": {
+      "type": "integer",
+      "required": true,
+      "min": 1,
+      "default": 3990
+    },
+    "premiumPrice": {
+      "type": "integer",
+      "required": true,
+      "min": 1,
+      "default": 4990
+    },
+    "sectionPrice": {
+      "type": "integer",
+      "required": true,
+      "min": 1,
+      "default": 890
+    },
+    "currency": {
+      "type": "string",
+      "required": true,
+      "default": "UAH",
+      "minLength": 3,
+      "maxLength": 3
+    }
+  }
+}

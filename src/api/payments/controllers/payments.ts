@@ -270,15 +270,17 @@ export default {
       return ctx.badRequest("Unknown orderReference format");
     }
 
-    if (currency !== expectedCurrency()) {
+    const expectedCurr = await expectedCurrency();
+    if (currency !== expectedCurr) {
       strapi.log.warn(
-        `[wfp-callback] rejected: unexpected currency orderReference=${orderReference} got=${currency} expected=${expectedCurrency()}`,
+        `[wfp-callback] rejected: unexpected currency orderReference=${orderReference} got=${currency} expected=${expectedCurr}`,
       );
       return ctx.badRequest("Unexpected currency");
     }
-    if (amount !== expectedPrice(parsed.kind)) {
+    const expectedAmt = await expectedPrice(parsed.kind);
+    if (amount !== expectedAmt) {
       strapi.log.warn(
-        `[wfp-callback] rejected: unexpected amount orderReference=${orderReference} got=${amount} expected=${expectedPrice(parsed.kind)}`,
+        `[wfp-callback] rejected: unexpected amount orderReference=${orderReference} got=${amount} expected=${expectedAmt}`,
       );
       return ctx.badRequest("Unexpected amount");
     }
