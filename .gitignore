@@ -131,4 +131,4 @@ legacy/
 .strapi/
 data.db
 *.dump
-local.dump
+local.dump.strapi-updater.json
