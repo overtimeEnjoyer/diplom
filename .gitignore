@@ -129,6 +129,7 @@ dist
 build
 legacy/
 .strapi/
+.strapi-updater.json
 data.db
 *.dump
 local.dump.strapi-updater.json
