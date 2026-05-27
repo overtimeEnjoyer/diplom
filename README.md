@@ -4,7 +4,7 @@
 
 **Стек:** Node.js, Express.js, Sequelize, PostgreSQL, Vercel Functions, JWT, Jest/Supertest.
 
-> Попередня реалізація на Strapi 5 збережена в [`legacy/strapi/`](legacy/strapi/) для порівняння та міграції контенту.
+> Міграція даних зі Strapi: [`docs/MIGRATE_FROM_STRAPI.md`](docs/MIGRATE_FROM_STRAPI.md).
 
 ## Архітектура (коротко)
 
@@ -34,8 +34,8 @@ src/
   app.js server.js
 tests/                    # Jest + Supertest
 docs/                     # Матеріали для захисту
-legacy/strapi/            # Попередній Strapi backend
 methodics-sections/       # Статичний контент для імпорту
+scripts/                  # import:methodics, migrate:from-strapi
 ```
 
 ## API (збережений контракт для фронтенду)

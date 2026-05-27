@@ -14,12 +14,24 @@ import * as paymentsController from './controllers/payments.controller.js';
 
 let appReady;
 
+let dbReady;
+let dbInitPromise;
+
+async function initDatabase() {
+  if (dbReady) return;
+  if (!dbInitPromise) {
+    dbInitPromise = (async () => {
+      await connectDatabase();
+      initModels();
+      await ensureDefaultPricing();
+      dbReady = true;
+    })();
+  }
+  await dbInitPromise;
+}
+
 export async function createApp() {
   if (appReady) return appReady;
-
-  await connectDatabase();
-  initModels();
-  await ensureDefaultPricing();
 
   const app = express();
   app.set('trust proxy', 1);
@@ -34,7 +46,24 @@ export async function createApp() {
   app.use(helmet({ contentSecurityPolicy: false }));
   if (!env.isTest) app.use(morgan(env.isProduction ? 'combined' : 'dev'));
 
-  app.get('/health', (_req, res) => res.json({ ok: true, service: 'rok-m-backend' }));
+  app.get('/health', (_req, res) =>
+    res.json({
+      ok: true,
+      service: 'rok-m-backend',
+      env: env.nodeEnv,
+      databaseConfigured: Boolean(env.databaseUrl),
+    }),
+  );
+
+  app.use(async (req, res, next) => {
+    if (req.path === '/health') return next();
+    try {
+      await initDatabase();
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
 
   // WayForPay callback: preserve raw body before JSON parser
   app.post(

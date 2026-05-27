@@ -29,9 +29,13 @@
 
 ### 2. Підготуйте нову БД
 
+**Локально:** якщо Strapi вже в `rok_m_dev`, створіть **іншу** порожню базу (наприклад `rok_m_new`). Не мігруйте схему Sequelize в ту саму БД, що й Strapi — імена таблиць (`methods`, `users`) збігаються, але структура різна.
+
 ```bash
+createdb rok_m_new
+
 # Нова БД (Vercel Postgres / Neon) — у .env:
-# DATABASE_URL=postgresql://...
+# DATABASE_URL=postgresql://...@127.0.0.1:5432/rok_m_new
 
 pnpm db:migrate
 ```

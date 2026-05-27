@@ -4,28 +4,44 @@ import { env } from './env.js';
 let sequelizeInstance;
 let readReplicas = [];
 
+function inferSslFromUrl(url) {
+  if (!url) return false;
+  return /sslmode=require|ssl=true|neon\.tech|supabase\.co|vercel-storage\.com|render\.com|railway\.app/i.test(
+    url,
+  );
+}
+
+function useSsl(url) {
+  if (process.env.DATABASE_SSL === 'true') return true;
+  if (process.env.DATABASE_SSL === 'false') return false;
+  return inferSslFromUrl(url);
+}
+
 const poolConfig = {
-  max: Number(process.env.DATABASE_POOL_MAX || 5),
+  max: Number(
+    process.env.DATABASE_POOL_MAX || (process.env.VERCEL ? 1 : 5),
+  ),
   min: Number(process.env.DATABASE_POOL_MIN || 0),
   acquire: Number(process.env.DATABASE_CONNECTION_TIMEOUT || 30000),
-  idle: 10000,
+  idle: Number(process.env.DATABASE_POOL_IDLE || 5000),
 };
 
-const dialectOptions =
-  process.env.DATABASE_SSL === 'true'
-    ? {
-        ssl: {
-          require: true,
-          rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
-        },
-      }
-    : {};
+function buildDialectOptions(url) {
+  if (!useSsl(url)) return {};
+  return {
+    ssl: {
+      require: true,
+      rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
+    },
+  };
+}
 
 const modelDefaults = { underscored: true, timestamps: true };
 
 function buildSequelize(urlOrConfig) {
   const readUrls = env.databaseReadReplicaUrls;
   const writeUrl = typeof urlOrConfig === 'string' ? urlOrConfig : env.databaseUrl;
+  const dialectOptions = buildDialectOptions(writeUrl);
 
   if (writeUrl && readUrls.length > 0) {
     return new Sequelize({
@@ -59,6 +75,8 @@ function buildSequelize(urlOrConfig) {
     username: process.env.DATABASE_USERNAME || 'postgres',
     password: process.env.DATABASE_PASSWORD || 'postgres',
     logging: process.env.SEQUELIZE_LOGGING === 'true' ? console.log : false,
+    dialectOptions: buildDialectOptions(''),
+    pool: poolConfig,
     define: modelDefaults,
   });
 }
@@ -86,7 +104,21 @@ export function getReadSequelize() {
 }
 
 export async function connectDatabase() {
+  if (env.isProduction && !env.databaseUrl) {
+    throw new Error(
+      'DATABASE_URL is not set. Add it in Vercel → Settings → Environment Variables (use Neon/Supabase pooler URL).',
+    );
+  }
+
   const sequelize = getSequelize();
-  await sequelize.authenticate();
+  try {
+    await sequelize.authenticate();
+  } catch (err) {
+    const hint = env.databaseUrl
+      ? 'Check DATABASE_URL, SSL (Neon needs sslmode=require or DATABASE_SSL=true), and that migrations were run.'
+      : 'Set DATABASE_URL to your hosted PostgreSQL connection string.';
+    err.message = `${err.message}. ${hint}`;
+    throw err;
+  }
   return sequelize;
 }

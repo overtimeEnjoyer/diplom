@@ -11,14 +11,45 @@
  *   ... pnpm migrate:from-strapi -- --truncate
  */
 import 'dotenv/config';
+import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { randomUUID } from 'uuid';
 
 const { Client } = pg;
 
 const truncate = process.argv.includes('--truncate');
 const strapiUrl = process.env.STRAPI_DATABASE_URL || process.env.OLD_DATABASE_URL;
 const targetUrl = process.env.DATABASE_URL;
+
+function inferSslFromUrl(url: string) {
+  if (/sslmode=disable/i.test(url)) return false;
+  return /sslmode=require|ssl=true|neon\.tech|supabase\.co|vercel-storage\.com|render\.com|railway\.app/i.test(
+    url,
+  );
+}
+
+function useSslForUrl(url: string) {
+  if (/sslmode=disable/i.test(url)) return false;
+  if (/sslmode=require|sslmode=verify-full|sslmode=verify-ca/i.test(url)) return true;
+  try {
+    const host = new URL(url.replace(/^postgres(ql)?:/, 'http:')).hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return false;
+  } catch {
+    /* ignore */
+  }
+  if (process.env.DATABASE_SSL === 'false') return false;
+  if (process.env.DATABASE_SSL === 'true') return true;
+  return inferSslFromUrl(url);
+}
+
+function pgClientOptions(connectionString: string) {
+  if (!useSslForUrl(connectionString)) return { connectionString };
+  return {
+    connectionString,
+    ssl: {
+      rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
+    },
+  };
+}
 
 if (!strapiUrl || !targetUrl) {
   console.error('Потрібні STRAPI_DATABASE_URL (джерело) та DATABASE_URL (ціль).');
@@ -51,6 +82,26 @@ function pick(row: Record<string, unknown>, ...names: string[]) {
 function asUuid(val: unknown) {
   if (!val) return randomUUID();
   return String(val);
+}
+
+/** Normalize Strapi JSON / JSONB / rich-text for PostgreSQL jsonb columns. */
+function toJsonParam(val: unknown): string | null {
+  if (val === undefined || val === null) return null;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    try {
+      JSON.parse(trimmed);
+      return trimmed;
+    } catch {
+      return JSON.stringify({
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: trimmed }] }],
+      });
+    }
+  }
+  if (typeof val === 'object') return JSON.stringify(val);
+  return JSON.stringify(val);
 }
 
 async function resolveMethodSectionId(
@@ -149,8 +200,8 @@ async function loadReflectionQuestions(src: pg.Client, methodId: number) {
 }
 
 async function main() {
-  const src = new Client({ connectionString: strapiUrl, ssl: { rejectUnauthorized: false } });
-  const dst = new Client({ connectionString: targetUrl, ssl: { rejectUnauthorized: false } });
+  const src = new Client(pgClientOptions(strapiUrl));
+  const dst = new Client(pgClientOptions(targetUrl));
 
   await src.connect();
   await dst.connect();
@@ -259,15 +310,15 @@ async function main() {
             row.approach,
             pick(row, 'target_audience', 'targetAudience'),
             row.goal,
-            pick(row, 'purpose'),
-            pick(row, 'therapeutic_effect', 'therapeuticEffect'),
+            toJsonParam(pick(row, 'purpose')),
+            toJsonParam(pick(row, 'therapeutic_effect', 'therapeuticEffect')),
             row.time,
             row.materials,
-            pick(row, 'short_instruction', 'shortInstruction'),
-            pick(row, 'instruction'),
-            pick(row, 'interpretation'),
-            pick(row, 'completion'),
-            reflection ? JSON.stringify(reflection) : null,
+            toJsonParam(pick(row, 'short_instruction', 'shortInstruction')),
+            toJsonParam(pick(row, 'instruction')),
+            toJsonParam(pick(row, 'interpretation')),
+            toJsonParam(pick(row, 'completion')),
+            toJsonParam(reflection),
             pick(row, 'published_at', 'publishedAt'),
             row.locale,
             row.created_at || row.createdAt || new Date(),

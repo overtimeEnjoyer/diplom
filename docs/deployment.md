@@ -19,14 +19,15 @@ pnpm setup:local
 
 1. Import Git repository.
 2. Framework Preset: **Other** (або Node).
-3. `vercel.json` вже налаштовує `api/index.js` як serverless handler.
-4. Environment variables:
+3. `vercel.json` — serverless handler `api/index.js`, `pnpm install`.
+4. **Обов’язкові** Environment variables (Production + Preview):
 
 | Variable | Опис |
 |----------|------|
-| DATABASE_URL | PostgreSQL connection string (pooler) |
-| JWT_SECRET | Довгий випадковий рядок |
-| CORS_ORIGINS | https://rok-mentalhealth.com,… |
+| DATABASE_URL | Neon **pooler** URL з `?sslmode=require` |
+| JWT_SECRET | Довгий випадковий рядок (як у локальному `.env`) |
+| NODE_ENV | `production` |
+| CORS_ORIGINS | `https://rok-mentalhealth.com,https://www.rok-mentalhealth.com` |
 | WAYFORPAY_* | Merchant keys, return/service URLs |
 | BREVO_* / SENDGRID_API_KEY | Email |
 
@@ -45,8 +46,10 @@ DATABASE_URL="postgresql://..." pnpm db:seed
 
 | Проблема | Рішення |
 |----------|---------|
+| `FUNCTION_INVOCATION_FAILED` | Vercel → **Logs** → Runtime. Зазвичай немає `DATABASE_URL`, SSL, або не запущені міграції |
+| 503 `service_unavailable` | Див. лог: `DATABASE_URL is not set` або `Database tables are missing` |
 | 500 при першому запиті | Cold start + перевірте DATABASE_URL |
-| Too many connections | Використовуйте pooler URL, зменшіть `DATABASE_POOL_MAX` |
+| Too many connections | Використовуйте **pooler** URL (Neon `-pooler`), `DATABASE_POOL_MAX=1` на Vercel |
 | WayForPay invalid signature | Перевірте secret key, raw callback route |
 | CORS blocked | Додайте origin у `CORS_ORIGINS` |
 | 404 /api/api/... | У фронті не дублюйте `/api` в `VITE_API_URL` |

@@ -1,5 +1,28 @@
 # Проєктування бази даних
 
+## Окрема БД для нового backend (важливо)
+
+**Не** запускайте `pnpm db:migrate` у тій самій PostgreSQL-базі, де працює Strapi (`up_users`, `strapi_*`, `methods` без `method_section_id`).
+
+| База | Призначення |
+|------|-------------|
+| `rok_m_dev` (або стара) | Джерело: `STRAPI_DATABASE_URL` для `pnpm migrate:from-strapi` |
+| `rok_m_new` (нова, порожня) | Ціль: `DATABASE_URL` → `pnpm db:migrate` + API |
+
+```bash
+createdb rok_m_new
+export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/rok_m_new"
+pnpm db:migrate
+pnpm db:seed
+
+export STRAPI_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/rok_m_dev"
+pnpm migrate:from-strapi -- --truncate
+```
+
+Помилка `column "method_section_id" does not exist` означає, що міграцію запустили в БД зі Strapi.
+
+---
+
 ## ERD
 
 ```mermaid

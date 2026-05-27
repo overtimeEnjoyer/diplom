@@ -42,17 +42,28 @@ export async function loadPricingSettings() {
 
 export async function ensureDefaultPricing() {
   const { Pricing } = getModels();
-  const { v4: uuidv4 } = await import('uuid');
-  const existing = await Pricing.findOne();
-  if (existing) return existing;
-  return Pricing.create({
-    documentId: uuidv4(),
-    makCardsPrice: DEFAULT_PRICING.prices['mak-cards'],
-    mediumPrice: DEFAULT_PRICING.prices.medium,
-    premiumPrice: DEFAULT_PRICING.prices.premium,
-    sectionPrice: DEFAULT_PRICING.prices.section,
-    currency: DEFAULT_PRICING.currency,
-  });
+  try {
+    const { v4: uuidv4 } = await import('uuid');
+    const existing = await Pricing.findOne();
+    if (existing) return existing;
+    return Pricing.create({
+      documentId: uuidv4(),
+      makCardsPrice: DEFAULT_PRICING.prices['mak-cards'],
+      mediumPrice: DEFAULT_PRICING.prices.medium,
+      premiumPrice: DEFAULT_PRICING.prices.premium,
+      sectionPrice: DEFAULT_PRICING.prices.section,
+      currency: DEFAULT_PRICING.currency,
+    });
+  } catch (err) {
+    if (err.name === 'SequelizeDatabaseError' || err.original?.code === '42P01') {
+      const migrationHint = new Error(
+        'Database tables are missing. Run: DATABASE_URL="..." pnpm db:migrate && pnpm db:seed',
+      );
+      migrationHint.cause = err;
+      throw migrationHint;
+    }
+    throw err;
+  }
 }
 
 export function formatPricingForApi(row) {

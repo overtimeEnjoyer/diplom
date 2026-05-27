@@ -20,7 +20,8 @@
     "migrate:from-strapi": "tsx scripts/migrate-from-strapi.ts",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "setup:local": "bash scripts/setup-local.sh"
+    "setup:local": "bash scripts/setup-local.sh",
+    "db:prepare-new": "bash scripts/prepare-new-db.sh"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -118,10 +118,11 @@ yarn-error.log
 coverage
 
 ############################
-# Strapi
+# Strapi / legacy (local archive only)
 ############################
 
 .env
+.env.production
 license.txt
 exports
 .strapi
@@ -129,3 +130,7 @@ dist
 build
 .strapi-updater.json
 .strapi-cloud.json
+legacy/
+data.db
+*.dump
+local.dump
