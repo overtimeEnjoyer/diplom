@@ -3,8 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env.js';
-import { connectDatabase } from './config/database.js';
-import { initModels } from './models/index.js';
+import { connectDatabase, getSequelize } from './config/database.js';
+import { getModels, initModels } from './models/index.js';
 import { ensureDefaultPricing } from './services/pricing.service.js';
 import apiRoutes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
@@ -52,11 +52,42 @@ export async function createApp() {
       service: 'rok-m-backend',
       env: env.nodeEnv,
       databaseConfigured: Boolean(env.databaseUrl),
+      dbCheck: '/health/db',
+    }),
+  );
+
+  app.get('/health/db', async (_req, res) => {
+    try {
+      await connectDatabase();
+      initModels();
+      await getSequelize().query('SELECT 1 AS ok');
+      const { Pricing } = getModels();
+      const count = await Pricing.count();
+      res.json({ ok: true, database: 'connected', pricings: count });
+    } catch (err) {
+      console.error('[health/db]', err);
+      res.status(503).json({
+        ok: false,
+        database: 'error',
+        message: err.message,
+      });
+    }
+  });
+
+  app.get('/', (_req, res) =>
+    res.json({
+      ok: true,
+      service: 'rok-m-backend',
+      health: '/health',
+      api: {
+        pricing: '/api/pricing',
+        methodSections: '/api/method-sections',
+      },
     }),
   );
 
   app.use(async (req, res, next) => {
-    if (req.path === '/health') return next();
+    if (!req.path.startsWith('/api')) return next();
     try {
       await initDatabase();
       next();

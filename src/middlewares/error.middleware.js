@@ -21,6 +21,30 @@ export function errorHandler(err, _req, res, _next) {
   }
 
   console.error('[error]', err);
+
+  const dbErrorNames = new Set([
+    'SequelizeConnectionError',
+    'SequelizeConnectionRefusedError',
+    'SequelizeHostNotFoundError',
+    'SequelizeConnectionAcquireTimeoutError',
+  ]);
+  if (dbErrorNames.has(err.name)) {
+    return res.status(503).json({
+      error: { message: 'Database unavailable', code: 'database_unavailable' },
+      message: env.isProduction ? 'Database unavailable' : err.message,
+    });
+  }
+
+  if (err.name === 'SequelizeDatabaseError' && err.parent?.code === '42P01') {
+    return res.status(503).json({
+      error: {
+        message: 'Database tables missing. Run: DATABASE_URL=... pnpm db:migrate',
+        code: 'schema_missing',
+      },
+      message: 'Database schema missing',
+    });
+  }
+
   res.status(500).json({
     error: { message: env.isProduction ? 'Internal server error' : err.message },
     message: env.isProduction ? 'Internal server error' : err.message,
