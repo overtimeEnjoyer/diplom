@@ -1,6 +1,6 @@
 # Auth API — інструкція для фронтенду
 
-> **Ціни для UI:** як отримувати суми тарифів і розділів з бекенду — [FRONTEND_PRICING_API.md](./FRONTEND_PRICING_API.md).
+> **Ціни для UI:** [FRONTEND_PRICING_API.md](./FRONTEND_PRICING_API.md) · **БД і моделі:** [DATABASE_DESIGN_UA.md](./DATABASE_DESIGN_UA.md) · **Архітектура API:** [API_ORGANIZATION_UA.md](./API_ORGANIZATION_UA.md).
 
 ## Як підключитися до бекенду
 

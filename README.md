@@ -1,61 +1,141 @@
-# 🚀 Getting started with Strapi
+# rok-m-backend — серверна частина освітньої платформи
 
-Strapi comes with a full featured [Command Line Interface](https://docs.strapi.io/dev-docs/cli) (CLI) which lets you scaffold and manage your project in seconds.
+Практична імплементація **гібридної serverless/BaaS архітектури** для поширення освітніх матеріалів (дипломна робота).
 
-### `develop`
+**Стек:** Node.js, Express.js, Sequelize, PostgreSQL, Vercel Functions, JWT, Jest/Supertest.
 
-Start your Strapi application with autoReload enabled. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-develop)
+> Попередня реалізація на Strapi 5 збережена в [`legacy/strapi/`](legacy/strapi/) для порівняння та міграції контенту.
 
-```
-npm run develop
-# or
-yarn develop
-```
+## Архітектура (коротко)
 
-### `start`
-
-Start your Strapi application with autoReload disabled. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-start)
-
-```
-npm run start
-# or
-yarn start
+```text
+Frontend (rok-mentalhealth.com)
+        │  REST /api/*
+        ▼
+Vercel Functions  →  Express app (src/app.js)
+        │                  │
+        │                  ├── routes → controllers → services
+        ▼                  ▼
+   PostgreSQL (Neon/Supabase)  ← Sequelize ORM
 ```
 
-### `build`
+**Чому саме цей стек** — детально в [`docs/architecture.md`](docs/architecture.md) та [`docs/comparison.md`](docs/comparison.md).
 
-Build your admin panel. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-build)
+## Структура проєкту
 
+```text
+api/index.js              # Vercel serverless entry
+src/
+  config/                 # env, database (pool + read replicas)
+  models/                 # Sequelize models (User, Method, MethodSection, …)
+  migrations/ seeders/
+  routes/ controllers/ services/
+  middlewares/ validators/ utils/
+  app.js server.js
+tests/                    # Jest + Supertest
+docs/                     # Матеріали для захисту
+legacy/strapi/            # Попередній Strapi backend
+methodics-sections/       # Статичний контент для імпорту
 ```
-npm run build
-# or
-yarn build
+
+## API (збережений контракт для фронтенду)
+
+| Група | Приклади |
+|-------|----------|
+| Auth | `POST /api/auth/register`, `/api/auth/local`, `/api/auth/me` |
+| Профіль / пароль | `/api/auth/profile`, `/api/auth/password/*`, `/api/auth/email/*` |
+| Контент | `GET /api/method-sections`, `/api/methods`, `/api/pricing` |
+| Доступ / оплата | `/api/tariffs/*`, `/api/user-method-sections/*`, `/api/mak-cards/*`, `/api/payments/*` |
+| Інше | `POST /api/feedback`, `POST /api/progress/methods/:id/view` |
+
+Повний опис: [`docs/api.md`](docs/api.md). Для фронтенду змініть базовий URL:
+
+```env
+VITE_API_URL=http://localhost:3000
 ```
 
-## ⚙️ Deployment
+(раніше Strapi: порт **1337**)
 
-Strapi gives you many possible deployment options for your project including [Strapi Cloud](https://cloud.strapi.io). Browse the [deployment section of the documentation](https://docs.strapi.io/dev-docs/deployment) to find the best solution for your use case.
+## Змінні середовища
 
+Скопіюйте `.env.example` → `.env`. Обов’язкові для запуску:
+
+- `DATABASE_URL` — PostgreSQL
+- `JWT_SECRET`
+- WayForPay (для оплат): `WAYFORPAY_*`
+
+## Локальний запуск
+
+```bash
+pnpm install
+cp .env.example .env
+
+# Варіант A — Docker Postgres
+pnpm docker:up
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rok_m_dev pnpm setup:local
+
+# Варіант B — локальний Postgres
+createdb rok_m_dev
+pnpm setup:local
+
+pnpm dev
 ```
-yarn strapi deploy
+
+**Admin після seed:** `admin@rok-mentalhealth.local` / `Admin123!ChangeMe` (змініть через `ADMIN_*` у `.env`) — деталі: [`docs/ADMIN_SETUP.md`](docs/ADMIN_SETUP.md).
+
+API: `http://localhost:3000/api` · Health: `GET /health`
+
+## Міграції
+
+```bash
+pnpm db:migrate
+pnpm db:seed
+pnpm db:reset    # undo all + migrate + seed
 ```
 
-## 📚 Learn more
+## Тести
 
-- [Resource center](https://strapi.io/resource-center) - Strapi resource center.
-- [Strapi documentation](https://docs.strapi.io) - Official Strapi documentation.
-- [Strapi tutorials](https://strapi.io/tutorials) - List of tutorials made by the core team and the community.
-- [Strapi blog](https://strapi.io/blog) - Official Strapi blog containing articles made by the Strapi team and the community.
-- [Changelog](https://strapi.io/changelog) - Find out about the Strapi product updates, new features and general improvements.
+```bash
+createdb rok_m_test
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rok_m_test pnpm test
+```
 
-Feel free to check out the [Strapi GitHub repository](https://github.com/strapi/strapi). Your feedback and contributions are welcome!
+Деталі: [`docs/testing.md`](docs/testing.md)
 
-## ✨ Community
+## Деплой на Vercel
 
-- [Discord](https://discord.strapi.io) - Come chat with the Strapi community including the core team.
-- [Forum](https://forum.strapi.io/) - Place to discuss, ask questions and find answers, show your Strapi project and get feedback or just talk with other Community members.
-- [Awesome Strapi](https://github.com/strapi/awesome-strapi) - A curated list of awesome things related to Strapi.
+1. Підключіть репозиторій до Vercel.
+2. Додайте env: `DATABASE_URL`, `JWT_SECRET`, `WAYFORPAY_*`, `CORS_ORIGINS`.
+3. `WAYFORPAY_SERVICE_URL` → `https://<your-app>.vercel.app/api/payments/wayforpay-callback`
+4. Після деплою виконайте міграції на production БД (`pnpm db:migrate` локально з prod `DATABASE_URL`).
 
----
+Покроково: [`docs/deployment.md`](docs/deployment.md)
 
-<sub>🤫 Psst! [Strapi is hiring](https://strapi.io/careers).</sub>
+## Що перенесено з Strapi
+
+✅ Реєстрація / логін / JWT / профіль / скидання пароля  
+✅ Методики (sections + methods) з Strapi-подібними `filters` / `populate`  
+✅ Ціни, WayForPay, тарифи Medium/Premium, розділи, МАК-картки  
+✅ Feedback, favorites МАК  
+
+➕ **Нове (для дипломної теми):** історія переглядів матеріалів (`/api/progress/*`), admin REST, read-replica config  
+
+❌ **Не було в старому проєкті:** окремий Strapi Admin UI — замінено admin API + зовнішній CMS/скрипти; повний CRUD контенту через admin endpoints (базовий).
+
+Чеклист: [`docs/MIGRATION_INVENTORY.md`](docs/MIGRATION_INVENTORY.md)  
+Перенесення зі Strapi Postgres: [`docs/MIGRATE_FROM_STRAPI.md`](docs/MIGRATE_FROM_STRAPI.md)
+
+## Документація для захисту
+
+| Файл | Зміст |
+|------|--------|
+| [architecture.md](docs/architecture.md) | Архітектура, рішення, BaaS-гібрид |
+| [comparison.md](docs/comparison.md) | Порівняльні таблиці підходів і технологій |
+| [database.md](docs/database.md) | ERD, індекси, масштабування |
+| [api.md](docs/api.md) | Endpoints, ролі, помилки |
+| [deployment.md](docs/deployment.md) | Vercel + PostgreSQL |
+| [testing.md](docs/testing.md) | Jest, покриття |
+
+## Ліцензія
+
+Приватний проєкт (дипломна робота).

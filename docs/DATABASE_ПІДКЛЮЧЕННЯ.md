@@ -1,5 +1,7 @@
 # Що не так і як підключити базу даних
 
+> Схема таблиць, моделі та зв’язки: [DATABASE_DESIGN_UA.md](./DATABASE_DESIGN_UA.md).
+
 ## Що означає помилка
 
 **"Connection terminated unexpectedly"** — Strapi не може стабільно підключитися до PostgreSQL.
