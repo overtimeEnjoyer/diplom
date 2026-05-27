@@ -57,7 +57,7 @@
 
 | Функція | Причина |
 |---------|---------|
-| Strapi Admin Panel (React) | Замінено admin API; контент — міграція з `methodics-sections/` або legacy |
+| Strapi Admin Panel (React) | Замінено admin API; контент — `methodics-sections/` + `pnpm import:methodics` |
 | Strapi Media Library | Не використовувалась у custom API |
 | Plugin Cloud / EE flags | Не стосується нової архітектури |
 | `migrateAllMethodics.ts` | Замінено на `pnpm import:methodics` (Sequelize) |

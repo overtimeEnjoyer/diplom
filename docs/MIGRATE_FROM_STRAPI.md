@@ -79,7 +79,7 @@ Strapi локально часто використовує **SQLite**. Прям
 ### A. Тимчасово підняти Strapi на Postgres і експортувати
 
 1. Експортуйте prod Postgres з Render (якщо prod уже Postgres — використовуйте варіант 1).  
-2. Локальний SQLite → підключіть Strapi до тимчасового Postgres, імпорт через адмінку / `migrateAllMethodics` / REST.
+2. Локальний SQLite → підключіть Strapi до тимчасового Postgres, імпорт через адмінку / REST, або `pnpm import:methodics`.
 
 ### B. Тільки контент з файлів (якщо БД порожня)
 
@@ -93,7 +93,7 @@ pnpm import:methodics
 
 ### C. Експорт через Strapi REST (старий сервер ще працює)
 
-1. Запустіть старий Strapi (`legacy/strapi`, `pnpm develop`).  
+1. Запустіть старий Strapi (окремий клон/гілка `main`, `pnpm develop`).  
 2. Експортуйте JSON: `GET /api/method-sections?pagination[pageSize]=100&populate=methods` тощо.  
 3. Напишіть one-off import у нову БД (або зверніться до `import:methodics` для контенту).
 

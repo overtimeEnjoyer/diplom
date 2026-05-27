@@ -83,4 +83,4 @@ Base URL: `https://<host>/api` (локально: `http://localhost:3000/api`)
 | POST | /admin/methods | admin |
 | PATCH | /admin/methods/:id | admin |
 
-Детальні приклади для фронтенду: [FRONTEND_AUTH_API.md](./FRONTEND_AUTH_API.md), [FRONTEND_PRICING_API.md](./FRONTEND_PRICING_API.md).
+Формат відповідей контенту та pricing: `{ data, meta }` (сумісно з попереднім Strapi API).
