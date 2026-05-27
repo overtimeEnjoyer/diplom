@@ -1,7 +1,7 @@
 import { Op } from 'sequelize';
 import { getModels } from '../models/index.js';
 import { parsePagination, paginationMeta } from '../utils/pagination.js';
-import { parseStrapiFilters, onlyPublished, parsePopulate } from '../utils/strapiFilters.js';
+import { parseContentFilters, onlyPublished, parsePopulate } from '../utils/queryFilters.js';
 import { ApiError } from '../utils/ApiError.js';
 
 function formatMethodSection(row, includeMethods = false) {
@@ -62,7 +62,7 @@ function formatMethod(row) {
 export async function listMethodSections(query) {
   const { MethodSection, Method } = getModels();
   const { page, pageSize, limit, offset } = parsePagination(query);
-  const filters = parseStrapiFilters(query);
+  const filters = parseContentFilters(query);
   const where = onlyPublished(filters);
   const populate = parsePopulate(query);
 
@@ -109,7 +109,7 @@ export async function getMethodSection(idOrDocumentId, query) {
 export async function listMethods(query) {
   const { Method, MethodSection } = getModels();
   const { page, pageSize, limit, offset } = parsePagination(query);
-  const filters = parseStrapiFilters(query);
+  const filters = parseContentFilters(query);
   const where = onlyPublished(filters);
   const populate = parsePopulate(query);
 

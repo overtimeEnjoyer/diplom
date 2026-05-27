@@ -2,11 +2,11 @@
 
 ## Окрема БД для нового backend (важливо)
 
-**Не** запускайте `pnpm db:migrate` у тій самій PostgreSQL-базі, де працює Strapi (`up_users`, `strapi_*`, `methods` без `method_section_id`).
+**Не** запускайте `pnpm db:migrate` у тій самій PostgreSQL-базі, де лишилась **стара CMS-схема** (`up_users`, `methods` без `method_section_id`).
 
 | База | Призначення |
 |------|-------------|
-| `rok_m_dev` (або стара) | Джерело: `STRAPI_DATABASE_URL` для `pnpm migrate:from-strapi` |
+| `rok_m_dev` (або стара) | Джерело: `LEGACY_DATABASE_URL` для `pnpm migrate:legacy-db` |
 | `rok_m_new` (нова, порожня) | Ціль: `DATABASE_URL` → `pnpm db:migrate` + API |
 
 ```bash
@@ -15,11 +15,11 @@ export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/rok_m_new"
 pnpm db:migrate
 pnpm db:seed
 
-export STRAPI_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/rok_m_dev"
-pnpm migrate:from-strapi -- --truncate
+export LEGACY_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/rok_m_dev"
+pnpm migrate:legacy-db -- --truncate
 ```
 
-Помилка `column "method_section_id" does not exist` означає, що міграцію запустили в БД зі Strapi.
+Помилка `column "method_section_id" does not exist` означає, що міграцію запустили в БД зі старою схемою.
 
 ---
 
@@ -90,7 +90,7 @@ erDiagram
 
 ### method_sections / methods
 
-Освітні розділи та матеріали (методики). Rich content у JSONB (`purpose`, `instruction`, …). `published_at` — аналог Strapi draft/publish.
+Освітні розділи та матеріали (методики). Rich content у JSONB (`purpose`, `instruction`, …). `published_at` — чернетка / опубліковано (null = не показувати).
 
 ### user_method_sections
 

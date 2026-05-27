@@ -4,7 +4,7 @@
 
 **Стек:** Node.js, Express.js, Sequelize, PostgreSQL, Vercel Functions, JWT, Jest/Supertest.
 
-> Міграція даних зі Strapi: [`docs/MIGRATE_FROM_STRAPI.md`](docs/MIGRATE_FROM_STRAPI.md).
+> Міграція зі старої БД: [`docs/MIGRATE_LEGACY_DATA.md`](docs/MIGRATE_LEGACY_DATA.md).
 
 ## Архітектура (коротко)
 
@@ -35,7 +35,7 @@ src/
 tests/                    # Jest + Supertest
 docs/                     # Матеріали для захисту
 methodics-sections/       # Статичний контент для імпорту
-scripts/                  # import:methodics, migrate:from-strapi
+scripts/                  # import:methodics, migrate:legacy-db
 ```
 
 ## API (збережений контракт для фронтенду)
@@ -54,7 +54,7 @@ scripts/                  # import:methodics, migrate:from-strapi
 VITE_API_URL=http://localhost:3000
 ```
 
-(раніше Strapi: порт **1337**)
+(за замовчуванням у `.env` можна **1337** для сумісності з фронтом)
 
 ## Змінні середовища
 
@@ -111,19 +111,17 @@ DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rok_m_test pnpm test
 
 Покроково: [`docs/deployment.md`](docs/deployment.md)
 
-## Що перенесено з Strapi
+## Функціонал платформи
 
 ✅ Реєстрація / логін / JWT / профіль / скидання пароля  
-✅ Методики (sections + methods) з Strapi-подібними `filters` / `populate`  
+✅ Методики (sections + methods) з `filters` / `populate` у query  
 ✅ Ціни, WayForPay, тарифи Medium/Premium, розділи, МАК-картки  
 ✅ Feedback, favorites МАК  
 
-➕ **Нове (для дипломної теми):** історія переглядів матеріалів (`/api/progress/*`), admin REST, read-replica config  
+➕ **Додатково:** історія переглядів (`/api/progress/*`), admin REST, read-replica config  
 
-❌ **Не було в старому проєкті:** окремий Strapi Admin UI — замінено admin API + зовнішній CMS/скрипти; повний CRUD контенту через admin endpoints (базовий).
-
-Чеклист: [`docs/MIGRATION_INVENTORY.md`](docs/MIGRATION_INVENTORY.md)  
-Перенесення зі Strapi Postgres: [`docs/MIGRATE_FROM_STRAPI.md`](docs/MIGRATE_FROM_STRAPI.md)
+Чеклист ендпоінтів: [`docs/MIGRATION_INVENTORY.md`](docs/MIGRATION_INVENTORY.md)  
+Копіювання зі старої БД: [`docs/MIGRATE_LEGACY_DATA.md`](docs/MIGRATE_LEGACY_DATA.md)
 
 ## Документація для захисту
 

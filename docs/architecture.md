@@ -77,7 +77,7 @@ flowchart TB
 
 ## Авторизація
 
-JWT (Bearer). Ролі: `authenticated`, `admin`. Патерн збережено з Strapi-проєкту: кастомні маршрути перевіряють JWT у middleware, а не через зовнішній permission engine.
+JWT (Bearer). Ролі: `authenticated`, `admin`. Кожен захищений маршрут перевіряє JWT у middleware (`auth.middleware.js`, `role.middleware.js`).
 
 ## Інтеграції
 

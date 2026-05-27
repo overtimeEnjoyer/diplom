@@ -1,69 +1,49 @@
-# Інвентаризація функціоналу: Strapi → Express
+# Інвентаризація: попередній backend → Express
 
-## Ролі
+## Підсумок
 
-| Strapi | Новий backend |
-|--------|----------------|
-| Public | Не потрібен JWT; публічні GET контенту |
-| Authenticated | `role.type = authenticated` + JWT |
-| Strapi Admin | `role.type = admin` + JWT + `/api/admin/*` |
+| Було | Стало |
+|------|--------|
+| Headless CMS + custom API | Express + Sequelize + PostgreSQL |
+| Адмін UI в CMS | `role.type = admin` + JWT + `/api/admin/*` |
+| JWT users-permissions | `src/services/auth.service.js` + middleware |
+| WayForPay у сервісі CMS | `src/services/payments.service.js` |
 
-## Сутності
+## Моделі
 
-| Strapi content type | Sequelize model | Таблиця |
+| Контент-тип (раніше) | Sequelize model | Таблиця |
 |----------------------|-----------------|---------|
-| users-permissions.user | User | users |
-| method-section | MethodSection (Category) | method_sections |
-| method | Method (Material) | methods |
+| method-section | MethodSection | method_sections |
+| method | Method | methods |
+| user (extended) | User | users |
 | user-method-section | UserMethodSection | user_method_sections |
-| pricing | Pricing | pricings |
+| pricing (single) | Pricing | pricings |
 | feedback | Feedback | feedbacks |
-| — | MaterialView (Progress) | material_views |
+| — | MaterialView | material_views |
 
-## Endpoints — збережено
+## Ендпоінти (збережено для фронтенду)
 
 | Method | Path | Статус |
 |--------|------|--------|
 | POST | /api/auth/register | ✅ |
 | POST | /api/auth/local | ✅ |
-| POST | /api/auth/email/request-code | ✅ (legacy) |
-| POST | /api/auth/email/verify-code | ✅ (legacy) |
-| POST | /api/auth/password/request-code | ✅ |
-| POST | /api/auth/password/reset | ✅ |
 | GET | /api/auth/me | ✅ |
-| PUT/POST | /api/auth/profile | ✅ |
-| GET/PUT/POST | /api/mak-cards/favorites* | ✅ |
-| POST | /api/mak-cards/access | ✅ |
-| POST | /api/tariffs/medium/activate | ✅ |
-| POST | /api/tariffs/premium/activate | ✅ |
-| POST | /api/user-method-sections/assign | ✅ |
-| GET | /api/user-method-sections/me | ✅ |
-| POST | /api/payments/wayforpay-callback | ✅ |
-| GET | /api/payments/status | ✅ |
-| GET | /api/method-sections | ✅ (Strapi-подібна відповідь) |
+| GET | /api/method-sections | ✅ `{ data, meta }` |
 | GET | /api/methods | ✅ |
 | GET | /api/pricing | ✅ |
-| POST | /api/feedback | ✅ |
+| POST | /api/payments/wayforpay-callback | ✅ raw body |
+| POST | /api/progress/methods/:methodId/view | ✅ нове |
+| * | /api/admin/* | ✅ REST admin |
 
-## Додано для дипломної роботи
+## Не переноситься
 
-| Method | Path | Примітка |
-|--------|------|----------|
-| POST | /api/progress/methods/:methodId/view | Історія переглядів (не було в Strapi) |
-| GET | /api/progress/me | |
-| * | /api/admin/* | Admin REST замість Strapi Admin UI |
+| Функція | Заміна |
+|---------|--------|
+| Вбудована адмін-панель CMS | Admin API + `pnpm import:methodics` |
+| Media Library | Не використовувалась у custom API |
+| `migrateAllMethodics.ts` | `pnpm import:methodics` |
 
-## Не перенесено автоматично
+## Контракт API
 
-| Функція | Причина |
-|---------|---------|
-| Strapi Admin Panel (React) | Замінено admin API; контент — `methodics-sections/` + `pnpm import:methodics` |
-| Strapi Media Library | Не використовувалась у custom API |
-| Plugin Cloud / EE flags | Не стосується нової архітектури |
-| `migrateAllMethodics.ts` | Замінено на `pnpm import:methodics` (Sequelize) |
-
-## Зміна для фронтенду
-
-- **Порт:** `1337` → `3000` (або Vercel URL)
-- **`documentId`:** зберігається (UUID) для сумісності
-- **Формат відповіді:** `{ data, meta }` для контенту та pricing — як у Strapi 5
+- Відповіді контенту: `{ data, meta }`, `documentId`, `filters[...]`, `populate` — як очікує існуючий фронтенд.
+- Перенесення даних: [`MIGRATE_LEGACY_DATA.md`](./MIGRATE_LEGACY_DATA.md)

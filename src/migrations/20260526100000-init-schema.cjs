@@ -3,21 +3,21 @@
 const { QueryTypes } = require('sequelize');
 
 async function assertEmptyTargetDatabase(queryInterface) {
-  const strapiMarkers = await queryInterface.sequelize.query(
+  const legacySchemaMarkers = await queryInterface.sequelize.query(
     `
     SELECT table_name FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name IN ('up_users', 'strapi_migrations', 'admin_users', 'strapi_core_store_settings')
+      AND table_name IN ('up_users', 'admin_users')
     LIMIT 1
   `,
     { type: QueryTypes.SELECT },
   );
-  if (strapiMarkers.length > 0) {
+  if (legacySchemaMarkers.length > 0) {
     throw new Error(
-      'Ця БД містить Strapi (up_users, strapi_*). Створіть окрему порожню БД для нового backend:\n' +
+      'Ця БД містить таблиці попередньої CMS (up_users, admin_users, …). Створіть окрему порожню БД:\n' +
         '  createdb rok_m_new\n' +
         '  DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rok_m_new pnpm db:migrate\n' +
-        'Потім перенесіть дані: STRAPI_DATABASE_URL=<стара> DATABASE_URL=<нова> pnpm migrate:from-strapi -- --truncate',
+        'Потім: LEGACY_DATABASE_URL=<стара> DATABASE_URL=<нова> pnpm migrate:legacy-db -- --truncate',
     );
   }
 
@@ -36,8 +36,8 @@ async function assertEmptyTargetDatabase(queryInterface) {
   );
   if (legacyMethods.length > 0) {
     throw new Error(
-      'Таблиця methods існує без колонки method_section_id (схема Strapi). ' +
-        'Не запускайте db:migrate в тій самій БД, що й Strapi — використайте окрему (наприклад rok_m_new).',
+      'Таблиця methods без method_section_id — це схема старого backend. ' +
+        'Не запускайте db:migrate в тій самій БД; створіть окрему (наприклад rok_m_new).',
     );
   }
 }

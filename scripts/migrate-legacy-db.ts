@@ -1,14 +1,14 @@
 /**
- * Копіювання даних зі Strapi 5 PostgreSQL → нова схема (Express/Sequelize).
+ * Копіювання даних зі legacy PostgreSQL schema → нова схема (Express/Sequelize).
  *
- * STRAPI_DATABASE_URL — стара БД (Render / Neon / local Strapi Postgres)
+ * LEGACY_DATABASE_URL — стара БД (Render / Neon / local legacy Postgres)
  * DATABASE_URL — нова prod/dev БД (після pnpm db:migrate)
  *
  * Запуск:
  *   pnpm db:migrate
- *   STRAPI_DATABASE_URL="postgresql://..." DATABASE_URL="postgresql://..." pnpm migrate:from-strapi
+ *   LEGACY_DATABASE_URL="postgresql://..." DATABASE_URL="postgresql://..." pnpm migrate:legacy-db
  *   # повна перезапись даних (не чіпає sequelize_migrations):
- *   ... pnpm migrate:from-strapi -- --truncate
+ *   ... pnpm migrate:legacy-db -- --truncate
  */
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
@@ -17,7 +17,7 @@ import pg from 'pg';
 const { Client } = pg;
 
 const truncate = process.argv.includes('--truncate');
-const strapiUrl = process.env.STRAPI_DATABASE_URL || process.env.OLD_DATABASE_URL;
+const sourceUrl = process.env.LEGACY_DATABASE_URL || process.env.OLD_DATABASE_URL;
 const targetUrl = process.env.DATABASE_URL;
 
 function inferSslFromUrl(url: string) {
@@ -51,8 +51,8 @@ function pgClientOptions(connectionString: string) {
   };
 }
 
-if (!strapiUrl || !targetUrl) {
-  console.error('Потрібні STRAPI_DATABASE_URL (джерело) та DATABASE_URL (ціль).');
+if (!sourceUrl || !targetUrl) {
+  console.error('Потрібні LEGACY_DATABASE_URL (джерело) та DATABASE_URL (ціль).');
   process.exit(1);
 }
 
@@ -84,7 +84,7 @@ function asUuid(val: unknown) {
   return String(val);
 }
 
-/** Normalize Strapi JSON / JSONB / rich-text for PostgreSQL jsonb columns. */
+/** Normalize legacy CMS JSON / JSONB fields for PostgreSQL jsonb columns. */
 function toJsonParam(val: unknown): string | null {
   if (val === undefined || val === null) return null;
   if (typeof val === 'string') {
@@ -200,13 +200,13 @@ async function loadReflectionQuestions(src: pg.Client, methodId: number) {
 }
 
 async function main() {
-  const src = new Client(pgClientOptions(strapiUrl));
+  const src = new Client(pgClientOptions(sourceUrl));
   const dst = new Client(pgClientOptions(targetUrl));
 
   await src.connect();
   await dst.connect();
 
-  console.log('Source OK:', strapiUrl.replace(/:[^:@]+@/, ':***@'));
+  console.log('Source OK:', sourceUrl.replace(/:[^:@]+@/, ':***@'));
   console.log('Target OK:', targetUrl.replace(/:[^:@]+@/, ':***@'));
 
   if (truncate) {

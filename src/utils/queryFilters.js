@@ -1,9 +1,9 @@
 import { Op } from 'sequelize';
 
 /**
- * Parse Strapi-style filters from query, e.g. filters[slug][$eq]=communicate
+ * Parse REST filters from query string, e.g. filters[slug][$eq]=communicate
  */
-export function parseStrapiFilters(query) {
+export function parseContentFilters(query) {
   const where = {};
   const prefix = 'filters[';
 
@@ -17,7 +17,7 @@ export function parseStrapiFilters(query) {
       where[field] = { [Op.iLike]: `%${value}%` };
       continue;
     }
-    const sequelizeOp = mapOperator(op);
+    const sequelizeOp = mapFilterOperator(op);
     if (!sequelizeOp) continue;
     where[field] = { [sequelizeOp]: castValue(value, op) };
   }
@@ -33,7 +33,7 @@ function castValue(value, op) {
   return value;
 }
 
-function mapOperator(strapiOp) {
+function mapFilterOperator(filterOp) {
   const map = {
     eq: Op.eq,
     ne: Op.ne,
@@ -46,7 +46,7 @@ function mapOperator(strapiOp) {
     startsWith: Op.startsWith,
     endsWith: Op.endsWith,
   };
-  return map[strapiOp] || null;
+  return map[filterOp] || null;
 }
 
 export function parsePopulate(query) {

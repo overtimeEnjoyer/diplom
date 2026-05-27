@@ -27,7 +27,7 @@ Base URL: `https://<host>/api` (локально: `http://localhost:3000/api`)
 | GET | /methods/:id | — | populate |
 | GET | /pricing | — | — |
 
-**Відповідь:** `{ data, meta }` (Strapi-сумісно).
+**Відповідь:** `{ data, meta }` (контракт для існуючого фронтенду).
 
 ## Оплата та доступ
 
@@ -83,4 +83,4 @@ Base URL: `https://<host>/api` (локально: `http://localhost:3000/api`)
 | POST | /admin/methods | admin |
 | PATCH | /admin/methods/:id | admin |
 
-Формат відповідей контенту та pricing: `{ data, meta }` (сумісно з попереднім Strapi API).
+Формат відповідей контенту та pricing: `{ data, meta }`, поле `documentId` на сутностях.

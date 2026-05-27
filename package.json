@@ -17,7 +17,7 @@
     "db:reset": "sequelize-cli db:migrate:undo:all && sequelize-cli db:migrate && sequelize-cli db:seed:all",
     "db:setup": "pnpm db:migrate && pnpm db:seed",
     "import:methodics": "tsx scripts/import-methodics.ts",
-    "migrate:from-strapi": "tsx scripts/migrate-from-strapi.ts",
+    "migrate:legacy-db": "tsx scripts/migrate-legacy-db.ts",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "setup:local": "bash scripts/setup-local.sh",
