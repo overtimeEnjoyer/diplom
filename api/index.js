@@ -1,3 +1,10 @@
+import pg from 'pg';
+import pgHstore from 'pg-hstore';
+
+// Ensure Vercel serverless bundle includes Postgres drivers (pnpm + @vercel/nft)
+void pg;
+void pgHstore;
+
 import { createApp } from '../src/app.js';
 
 let handler;

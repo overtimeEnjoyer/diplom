@@ -1,5 +1,9 @@
 import { Sequelize } from 'sequelize';
+import pg from 'pg';
+import pgHstore from 'pg-hstore';
 import { env } from './env.js';
+
+void pgHstore;
 
 let sequelizeInstance;
 let readReplicas = [];
@@ -46,6 +50,7 @@ function buildSequelize(urlOrConfig) {
   if (writeUrl && readUrls.length > 0) {
     return new Sequelize({
       dialect: 'postgres',
+      dialectModule: pg,
       logging: process.env.SEQUELIZE_LOGGING === 'true' ? console.log : false,
       dialectOptions,
       pool: poolConfig,
@@ -60,6 +65,7 @@ function buildSequelize(urlOrConfig) {
   if (typeof urlOrConfig === 'string' && urlOrConfig) {
     return new Sequelize(urlOrConfig, {
       dialect: 'postgres',
+      dialectModule: pg,
       logging: process.env.SEQUELIZE_LOGGING === 'true' ? console.log : false,
       dialectOptions,
       pool: poolConfig,
@@ -69,6 +75,7 @@ function buildSequelize(urlOrConfig) {
 
   return new Sequelize({
     dialect: 'postgres',
+    dialectModule: pg,
     host: process.env.DATABASE_HOST || '127.0.0.1',
     port: Number(process.env.DATABASE_PORT || 5432),
     database: process.env.DATABASE_NAME || 'rok_m_dev',
