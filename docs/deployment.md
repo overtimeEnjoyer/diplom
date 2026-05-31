@@ -20,7 +20,8 @@ pnpm setup:local
 1. Import Git repository.
 2. Framework Preset: **Other** (або Node).
 3. `vercel.json` — serverless handler `api/index.js`, `pnpm install`.
-4. **Обов’язкові** Environment variables (Production + Preview):
+4. **Рекомендовано:** вимкніть **Auto-Deploy** у Vercel (Settings → Git), якщо деплой іде через GitHub Actions (`.github/workflows/cd.yml`) — інакше буде подвійний deploy.
+5. **Обов’язкові** Environment variables (Production + Preview):
 
 | Variable | Опис |
 |----------|------|
@@ -32,18 +33,39 @@ pnpm setup:local
 | PAYMENT_MOCK_CONFIRM | `true` only for demo prod confirm endpoint |
 | BREVO_* / SENDGRID_API_KEY | Email |
 
-5. У production підтверджуйте оплати через `POST /api/admin/payments/confirm` (admin JWT).
+6. У production підтверджуйте оплати через `POST /api/admin/payments/confirm` (admin JWT).
 
-## 3. Міграції на production
+## 3. CD (GitHub Actions)
+
+Після успішного **CI** на гілці `main` автоматично запускається **CD** (`.github/workflows/cd.yml`):
+
+1. `pnpm db:migrate` — міграції production БД
+2. `vercel deploy --prod` — деплой на Vercel
+3. Smoke test `GET /health` та `/health/db`
+
+Ручний redeploy: **Actions → CD → Run workflow**.
+
+### Secrets (Settings → Secrets and variables → Actions)
+
+| Secret | Опис |
+|--------|------|
+| `DATABASE_URL` | Production PostgreSQL (Neon pooler URL з `?sslmode=require`) |
+| `VERCEL_TOKEN` | [Vercel → Account → Tokens](https://vercel.com/account/tokens) |
+| `VERCEL_ORG_ID` | Vercel → Project → Settings → General → **Org ID** |
+| `VERCEL_PROJECT_ID` | Vercel → Project → Settings → General → **Project ID** |
+
+Опційно створіть GitHub **Environment** `production` з protection rules (required reviewers).
+
+## 4. Міграції на production (локально)
 
 ```bash
 DATABASE_URL="postgresql://..." pnpm db:migrate
 DATABASE_URL="postgresql://..." pnpm db:seed
 ```
 
-Виконуйте з локальної машини або CI, не з runtime функції.
+У звичайному flow міграції виконує CD; seed — один раз вручну після першого деплою.
 
-## 4. Типові проблеми
+## 5. Типові проблеми
 
 | Проблема | Рішення |
 |----------|---------|
@@ -55,13 +77,13 @@ DATABASE_URL="postgresql://..." pnpm db:seed
 | CORS blocked | Додайте origin у `CORS_ORIGINS` |
 | 404 /api/api/... | У фронті не дублюйте `/api` в `VITE_API_URL` |
 
-## 5. Локальний production-like запуск
+## 6. Локальний production-like запуск
 
 ```bash
 NODE_ENV=production node src/server.js
 ```
 
-## 6. Docker
+## 7. Docker
 
 ```bash
 docker build -t rok-m-backend .

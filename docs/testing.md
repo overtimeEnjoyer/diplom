@@ -30,6 +30,7 @@ pnpm test
 
 - Усі suites **passed** при доступному PostgreSQL (**22 тести**: auth, materials, users, progress, admin, payments).
 - CI: `.github/workflows/ci.yml` (GitHub Actions + Postgres service).
+- CD: `.github/workflows/cd.yml` (після успішного CI на `main`: migrate → Vercel deploy → smoke test).
 - Без БД — `SequelizeConnectionError` (потрібен test database).
 
 ```bash
