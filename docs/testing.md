@@ -1,5 +1,7 @@
 # Тестування
 
+> **Повний розділ для диплома (тестування + продуктивність):** [`thesis-testing-performance.md`](thesis-testing-performance.md)
+
 ## Стек
 
 - **Jest** — test runner
@@ -26,7 +28,7 @@ pnpm test
 
 ## Очікувані результати
 
-- Усі suites **passed** при доступному PostgreSQL (18 тестів: auth, materials, users, progress, admin).
+- Усі suites **passed** при доступному PostgreSQL (**22 тести**: auth, materials, users, progress, admin, payments).
 - CI: `.github/workflows/ci.yml` (GitHub Actions + Postgres service).
 - Без БД — `SequelizeConnectionError` (потрібен test database).
 
@@ -52,5 +54,4 @@ DATABASE_URL=postgresql://127.0.0.1:5432/rok_m_test pnpm test
 
 ## Розширення
 
-- Mock WayForPay signature unit tests у `payments.service.test.js`
-- Admin role tests з користувачем `type: admin`
+- Додаткові e2e для premium tariff, section assign + admin confirm

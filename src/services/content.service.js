@@ -1,11 +1,22 @@
-import { Op } from 'sequelize';
 import { getModels } from '../models/index.js';
 import { parsePagination, paginationMeta } from '../utils/pagination.js';
-import { parseContentFilters, onlyPublished, parsePopulate } from '../utils/queryFilters.js';
+import {
+  methodSectionBriefInclude,
+  parsePopulate,
+  parsePublishedWhere,
+  publishedMethodsInclude,
+  resolveIdOrDocumentWhere,
+  wantsPopulate,
+} from '../utils/contentQuery.js';
+import { onlyPublished } from '../utils/queryFilters.js';
 import { ApiError } from '../utils/ApiError.js';
 
+function toPlain(row) {
+  return row && typeof row.toJSON === 'function' ? row.toJSON() : row;
+}
+
 function formatMethodSection(row, includeMethods = false) {
-  const plain = row.toJSON();
+  const plain = toPlain(row);
   const out = {
     id: plain.id,
     documentId: plain.documentId,
@@ -25,7 +36,7 @@ function formatMethodSection(row, includeMethods = false) {
 }
 
 function formatMethod(row) {
-  const plain = row.toJSON();
+  const plain = toPlain(row);
   return {
     id: plain.id,
     documentId: plain.documentId,
@@ -62,14 +73,11 @@ function formatMethod(row) {
 export async function listMethodSections(query) {
   const { MethodSection, Method } = getModels();
   const { page, pageSize, limit, offset } = parsePagination(query);
-  const filters = parseContentFilters(query);
-  const where = onlyPublished(filters);
+  const where = parsePublishedWhere(query);
   const populate = parsePopulate(query);
+  const withMethods = wantsPopulate(populate, 'methods');
 
-  const include =
-    populate.includes('methods') || populate.includes('*')
-      ? [{ model: Method, as: 'methods', where: { publishedAt: { [Op.ne]: null } }, required: false }]
-      : [];
+  const include = withMethods ? [publishedMethodsInclude(Method)] : [];
 
   const { rows, count } = await MethodSection.findAndCountAll({
     where,
@@ -81,7 +89,7 @@ export async function listMethodSections(query) {
   });
 
   return {
-    data: rows.map((r) => formatMethodSection(r, populate.includes('methods') || populate.includes('*'))),
+    data: rows.map((r) => formatMethodSection(r, withMethods)),
     meta: paginationMeta(page, pageSize, count),
   };
 }
@@ -89,33 +97,23 @@ export async function listMethodSections(query) {
 export async function getMethodSection(idOrDocumentId, query) {
   const { MethodSection, Method } = getModels();
   const populate = parsePopulate(query);
-  const where = Number.isFinite(Number(idOrDocumentId))
-    ? { id: Number(idOrDocumentId), ...onlyPublished({}) }
-    : { documentId: idOrDocumentId, ...onlyPublished({}) };
-
-  const include =
-    populate.includes('methods') || populate.includes('*')
-      ? [{ model: Method, as: 'methods', where: { publishedAt: { [Op.ne]: null } }, required: false }]
-      : [];
+  const withMethods = wantsPopulate(populate, 'methods');
+  const where = resolveIdOrDocumentWhere(idOrDocumentId, onlyPublished({}));
+  const include = withMethods ? [publishedMethodsInclude(Method)] : [];
 
   const row = await MethodSection.findOne({ where, include });
   if (!row) throw ApiError.notFound('Method section not found');
-  return {
-    data: formatMethodSection(row, populate.includes('methods') || populate.includes('*')),
-    meta: {},
-  };
+  return { data: formatMethodSection(row, withMethods), meta: {} };
 }
 
 export async function listMethods(query) {
   const { Method, MethodSection } = getModels();
   const { page, pageSize, limit, offset } = parsePagination(query);
-  const filters = parseContentFilters(query);
-  const where = onlyPublished(filters);
+  const where = parsePublishedWhere(query);
   const populate = parsePopulate(query);
+  const withSection = wantsPopulate(populate, 'method_section');
 
-  const include = populate.includes('method_section') || populate.includes('*')
-    ? [{ model: MethodSection, as: 'method_section' }]
-    : [];
+  const include = withSection ? [methodSectionBriefInclude(MethodSection)] : [];
 
   const { rows, count } = await Method.findAndCountAll({
     where,
@@ -123,6 +121,7 @@ export async function listMethods(query) {
     limit,
     offset,
     order: [['id', 'ASC']],
+    distinct: withSection,
   });
 
   return { data: rows.map(formatMethod), meta: paginationMeta(page, pageSize, count) };
@@ -131,13 +130,9 @@ export async function listMethods(query) {
 export async function getMethod(idOrDocumentId, query) {
   const { Method, MethodSection } = getModels();
   const populate = parsePopulate(query);
-  const where = Number.isFinite(Number(idOrDocumentId))
-    ? { id: Number(idOrDocumentId), ...onlyPublished({}) }
-    : { documentId: idOrDocumentId, ...onlyPublished({}) };
-
-  const include = populate.includes('method_section') || populate.includes('*')
-    ? [{ model: MethodSection, as: 'method_section' }]
-    : [];
+  const withSection = wantsPopulate(populate, 'method_section');
+  const where = resolveIdOrDocumentWhere(idOrDocumentId, onlyPublished({}));
+  const include = withSection ? [methodSectionBriefInclude(MethodSection)] : [];
 
   const row = await Method.findOne({ where, include });
   if (!row) throw ApiError.notFound('Method not found');

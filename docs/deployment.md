@@ -28,10 +28,11 @@ pnpm setup:local
 | JWT_SECRET | Довгий випадковий рядок (як у локальному `.env`) |
 | NODE_ENV | `production` |
 | CORS_ORIGINS | `https://rok-mentalhealth.com,https://www.rok-mentalhealth.com` |
-| WAYFORPAY_* | Merchant keys, return/service URLs |
+| PAYMENT_PROVIDER | `mock` (dev) or `manual` (prod) |
+| PAYMENT_MOCK_CONFIRM | `true` only for demo prod confirm endpoint |
 | BREVO_* / SENDGRID_API_KEY | Email |
 
-5. `WAYFORPAY_SERVICE_URL` = `https://<project>.vercel.app/api/payments/wayforpay-callback`
+5. У production підтверджуйте оплати через `POST /api/admin/payments/confirm` (admin JWT).
 
 ## 3. Міграції на production
 
@@ -50,7 +51,7 @@ DATABASE_URL="postgresql://..." pnpm db:seed
 | 503 `service_unavailable` | Див. лог: `DATABASE_URL is not set` або `Database tables are missing` |
 | 500 при першому запиті | Cold start + перевірте DATABASE_URL |
 | Too many connections | Використовуйте **pooler** URL (Neon `-pooler`), `DATABASE_POOL_MAX=1` на Vercel |
-| WayForPay invalid signature | Перевірте secret key, raw callback route |
+| Оплата не застосувала доступ | Перевірте `orderReference`, admin/mock confirm |
 | CORS blocked | Додайте origin у `CORS_ORIGINS` |
 | 404 /api/api/... | У фронті не дублюйте `/api` в `VITE_API_URL` |
 

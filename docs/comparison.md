@@ -68,7 +68,7 @@
 | Аспект | Тільки BaaS (Supabase client) | **BaaS DB + Express API** |
 |--------|------------------------------|---------------------------|
 | Складні правила оплати | Важко | **У services** |
-| WayForPay callback | Edge functions / limits | **Повний контроль** |
+| Payment confirmation | Provider webhook vs internal confirm | **Повний контроль доменної логіки** |
 | Тести бізнес-логіки | Складніше | **Jest на services** |
 | Переносимість | Прив’язка до SDK | **Стандартний REST** |
 

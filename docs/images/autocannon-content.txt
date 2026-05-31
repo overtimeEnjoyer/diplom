@@ -1,0 +1,10 @@
+
+=== content: GET /api/method-sections ===
+connections=30 duration=15.05s pipelining=1
+req/s avg=2597.7
+latency avg=11ms p50=10ms p95=- p99=36ms
+
+=== content: GET /api/methods (filter slug eq) ===
+connections=30 duration=15.01s pipelining=1
+req/s avg=529.7
+latency avg=56ms p50=54ms p95=- p99=78ms

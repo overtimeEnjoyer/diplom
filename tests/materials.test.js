@@ -26,6 +26,14 @@ describe('Content API', () => {
     expect(res.body.data.length).toBeGreaterThan(0);
   });
 
+  it('lists method sections with populated methods', async () => {
+    const res = await request(app).get('/api/method-sections?populate=methods');
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].methods).toBeDefined();
+    expect(Array.isArray(res.body.data[0].methods)).toBe(true);
+    expect(res.body.data[0].methods[0].slug).toBe('test-method');
+  });
+
   it('filters methods by slug', async () => {
     const res = await request(app).get('/api/methods?filters[slug][$eq]=test-method');
     expect(res.status).toBe(200);

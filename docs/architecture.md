@@ -15,7 +15,7 @@
 flowchart TB
   subgraph client [Клієнт]
     FE[Frontend SPA]
-    WFP[WayForPay]
+    PAY[Payment confirm]
   end
 
   subgraph vercel [Vercel]
@@ -39,7 +39,7 @@ flowchart TB
   end
 
   FE -->|REST JWT| VF
-  WFP -->|callback| VF
+  PAY -->|confirm| VF
   M --> POOL
 ```
 
@@ -49,9 +49,9 @@ flowchart TB
 |-----|------------------|
 | **routes** | HTTP-метод, шлях, middleware (auth, validation) |
 | **controllers** | Парсинг запиту, статус-код, формат відповіді |
-| **services** | Бізнес-логіка, транзакції, інтеграції (WayForPay, email) |
+| **services** | Бізнес-логіка, транзакції, оплати (provider-agnostic), email |
 | **models** | Схема БД, associations, індекси |
-| **middlewares** | JWT, ролі, помилки, raw body для WayForPay |
+| **middlewares** | JWT, ролі, помилки, валідація |
 
 Бізнес-логіка **не** знаходиться в routes — це спрощує тестування та зміну транспорту (локальний сервер ↔ serverless).
 
@@ -63,7 +63,7 @@ flowchart TB
 | **Express API** | Повний контроль над правилами доступу, оплатою, валідацією |
 | **Vercel Functions** | Serverless runtime без окремого VPS |
 
-**Чому не чистий BaaS (Firebase/Supabase Auth only):** складні транзакції доступу, кастомний WayForPay, зменшення vendor lock-in для бізнес-правил.
+**Чому не чистий BaaS (Firebase/Supabase Auth only):** складні транзакції доступу, гнучка оплата, зменшення vendor lock-in для бізнес-правил.
 
 **Чому не класичний моноліт на VPS:** вищий DevOps overhead, гірше масштабування піків без додаткової інфраструктури.
 
@@ -81,7 +81,7 @@ JWT (Bearer). Ролі: `authenticated`, `admin`. Кожен захищений 
 
 ## Інтеграції
 
-- **WayForPay:** HMAC-MD5, offline invoice, callback з raw body parser.
+- **Оплати:** pending intent + підтвердження (mock у dev, manual через admin у prod).
 - **Email:** Brevo (пріоритет) або SendGrid для password reset.
 
 ## Висновок для захисту

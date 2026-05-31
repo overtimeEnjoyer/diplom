@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import { getModels } from '../models/index.js';
 import { ApiError } from '../utils/ApiError.js';
+import { pickDefined } from '../utils/pick.js';
 import { formatPricingForApi } from './pricing.service.js';
 import { syncUserTariffFromAdmin } from './payments.service.js';
 
@@ -57,6 +58,19 @@ export async function listUsers({ search, limit = 50 } = {}) {
   }
   const rows = await User.findAll({
     where,
+    attributes: [
+      'id',
+      'documentId',
+      'username',
+      'email',
+      'confirmed',
+      'blocked',
+      'makCardsAccess',
+      'isMedium',
+      'isPremium',
+      'createdAt',
+      'updatedAt',
+    ],
     include: [{ model: Role, as: 'role', attributes: ['id', 'name', 'type'] }],
     order: [['id', 'DESC']],
     limit: Math.min(Number(limit) || 50, 200),
@@ -92,7 +106,7 @@ export async function updateMethodSection(id, data) {
   const { MethodSection } = getModels();
   const row = await findSectionByIdOrSlug(id);
   const allowed = ['slug', 'title', 'subtitle', 'mobtitle', 'publishedAt', 'locale'];
-  const patch = pickAllowed(data, allowed);
+  const patch = pickDefined(data, allowed);
   if (patch.publishedAt === null) patch.publishedAt = null;
   await row.update(patch);
   return row;
@@ -146,7 +160,7 @@ export async function updateMethod(id, data) {
     'publishedAt',
     'locale',
   ];
-  await row.update(pickAllowed(data, allowed));
+  await row.update(pickDefined(data, allowed));
   return row;
 }
 
@@ -191,10 +205,3 @@ async function findMethodByIdOrSlug(id) {
   return row;
 }
 
-function pickAllowed(data, keys) {
-  const out = {};
-  for (const key of keys) {
-    if (data[key] !== undefined) out[key] = data[key];
-  }
-  return out;
-}

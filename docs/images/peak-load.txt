@@ -1,0 +1,20 @@
+
+=== peak: GET /api/method-sections ===
+connections=80 duration=11.01s pipelining=1
+req/s avg=2306.3
+latency avg=34ms p50=31ms p95=- p99=95ms
+
+=== peak: GET /api/methods?filters[slug][$contains]=test ===
+connections=80 duration=6.01s pipelining=1
+req/s avg=474.8
+latency avg=166ms p50=164ms p95=- p99=258ms
+
+=== peak: GET /api/pricing ===
+connections=80 duration=2.01s pipelining=1
+req/s avg=3599.5
+latency avg=22ms p50=17ms p95=- p99=173ms
+
+=== peak: POST /api/progress/methods/:id/view ===
+connections=80 duration=1.01s pipelining=1
+req/s avg=719.0
+latency avg=107ms p50=98ms p95=- p99=201ms

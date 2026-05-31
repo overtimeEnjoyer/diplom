@@ -7,7 +7,7 @@
 | Headless CMS + custom API | Express + Sequelize + PostgreSQL |
 | Адмін UI в CMS | `role.type = admin` + JWT + `/api/admin/*` |
 | JWT users-permissions | `src/services/auth.service.js` + middleware |
-| WayForPay у сервісі CMS | `src/services/payments.service.js` |
+| Оплати (provider-agnostic) | `src/services/payments.service.js` |
 
 ## Моделі
 
@@ -31,7 +31,8 @@
 | GET | /api/method-sections | ✅ `{ data, meta }` |
 | GET | /api/methods | ✅ |
 | GET | /api/pricing | ✅ |
-| POST | /api/payments/wayforpay-callback | ✅ raw body |
+| POST | /api/payments/confirm | ✅ mock/demo |
+| POST | /api/admin/payments/confirm | ✅ admin manual |
 | POST | /api/progress/methods/:methodId/view | ✅ нове |
 | * | /api/admin/* | ✅ REST admin |
 

@@ -39,9 +39,10 @@ Base URL: `https://<host>/api` (локально: `http://localhost:3000/api`)
 | GET | /user-method-sections/me | JWT | — |
 | POST | /mak-cards/access | JWT | — |
 | GET | /payments/status | — | orderReference |
-| POST | /payments/wayforpay-callback | — | WayForPay payload |
+| POST | /payments/confirm | JWT | orderReference (mock/demo; dev/test; must match payer) |
+| POST | /admin/payments/confirm | admin | orderReference (manual confirmation) |
 
-**Успіх оплати (ініціалізація):** `{ status: "payment_required", paymentUrl, orderReference, amount, currency, ... }`
+**Ініціалізація оплати:** `{ status: "payment_required", payment_required: true, payment: { provider, type, amount, currency, orderReference, status: "pending" }, orderReference, amount, currency }`
 
 ## MAK favorites
 

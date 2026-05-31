@@ -20,6 +20,13 @@ export function errorHandler(err, _req, res, _next) {
     });
   }
 
+  if (err.name === 'SequelizeUniqueConstraintError') {
+    return res.status(409).json({
+      error: { message: 'Resource already exists', code: 'unique_violation' },
+      message: 'Resource already exists',
+    });
+  }
+
   console.error('[error]', err);
 
   const dbErrorNames = new Set([

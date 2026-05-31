@@ -3,10 +3,14 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/role.middleware.js';
 import * as adminController from '../controllers/admin.controller.js';
+import { confirmPaymentRules } from '../validators/payment.validator.js';
+import { validate } from '../middlewares/validation.middleware.js';
 
 const router = Router();
 
 router.use(authenticate, requireRole('admin'));
+
+router.post('/payments/confirm', confirmPaymentRules, validate, asyncHandler(adminController.confirmPayment));
 
 router.get('/feedbacks', asyncHandler(adminController.listFeedbacks));
 router.patch('/feedbacks/:id/processed', asyncHandler(adminController.markFeedbackProcessed));

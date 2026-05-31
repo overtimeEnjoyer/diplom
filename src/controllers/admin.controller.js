@@ -1,34 +1,41 @@
 import * as adminService from '../services/admin.service.js';
+import { confirmManualPayment } from '../services/payments.service.js';
+import { sendCreated, sendData, sendJson } from '../utils/response.js';
 
 export async function listFeedbacks(req, res) {
   const rows = await adminService.listFeedbacks({
     processed: req.query.processed,
     limit: req.query.limit,
   });
-  res.json({ data: rows });
+  sendData(res, rows);
 }
 
 export async function markFeedbackProcessed(req, res) {
   const row = await adminService.markFeedbackProcessed(req.params.id);
-  res.json({ data: row });
+  sendData(res, row);
 }
 
 export async function getPricing(req, res) {
-  res.json({ data: await adminService.getPricing() });
+  sendData(res, await adminService.getPricing());
 }
 
 export async function updatePricing(req, res) {
-  res.json({ data: await adminService.updatePricing(req.body) });
+  sendData(res, await adminService.updatePricing(req.body));
 }
 
 export async function listUsers(req, res) {
   const rows = await adminService.listUsers({ search: req.query.search, limit: req.query.limit });
-  res.json({ data: rows });
+  sendData(res, rows);
+}
+
+export async function confirmPayment(req, res) {
+  const orderReference = String(req.body.orderReference || '');
+  sendJson(res, 200, await confirmManualPayment(orderReference));
 }
 
 export async function updateUserTariff(req, res) {
   const user = await adminService.updateUserTariff(req.params.id, req.body);
-  res.json({
+  sendJson(res, 200, {
     ok: true,
     data: {
       id: user.id,
@@ -44,17 +51,17 @@ export async function listMethodSections(req, res) {
     includeUnpublished: req.query.includeUnpublished !== 'false',
     limit: req.query.limit,
   });
-  res.json({ data: rows });
+  sendData(res, rows);
 }
 
 export async function createMethodSection(req, res) {
   const row = await adminService.createMethodSection(req.body);
-  res.status(201).json({ data: row });
+  sendCreated(res, row);
 }
 
 export async function updateMethodSection(req, res) {
   const row = await adminService.updateMethodSection(req.params.id, req.body);
-  res.json({ data: row });
+  sendData(res, row);
 }
 
 export async function listMethods(req, res) {
@@ -62,15 +69,15 @@ export async function listMethods(req, res) {
     sectionId: req.query.sectionId,
     limit: req.query.limit,
   });
-  res.json({ data: rows });
+  sendData(res, rows);
 }
 
 export async function createMethod(req, res) {
   const row = await adminService.createMethod(req.body);
-  res.status(201).json({ data: row });
+  sendCreated(res, row);
 }
 
 export async function updateMethod(req, res) {
   const row = await adminService.updateMethod(req.params.id, req.body);
-  res.json({ data: row });
+  sendData(res, row);
 }

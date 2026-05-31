@@ -1,29 +1,24 @@
 import { getModels } from '../models/index.js';
 import { ApiError } from '../utils/ApiError.js';
-import { createAccessPayment } from './payments.service.js';
+import { methodSectionBriefInclude } from '../utils/contentQuery.js';
+import { formatUserMethodSectionList } from '../serializers/userMethodSection.serializer.js';
+import { startAccessPayment } from './payments.service.js';
 
-export async function assignSection(user, { methodSectionId, categorySlug, methodicSlug }) {
+export async function assignSection(user, { methodSectionId }) {
   const { MethodSection } = getModels();
   if (!methodSectionId) throw ApiError.badRequest('methodSectionId is required');
 
-  const methodSection = await MethodSection.findByPk(methodSectionId);
+  const methodSection = await MethodSection.findByPk(methodSectionId, {
+    attributes: ['id', 'slug', 'title', 'subtitle', 'mobtitle'],
+  });
   if (!methodSection) throw ApiError.notFound('Method section not found');
 
-  const payment = await createAccessPayment(
-    'section',
-    { id: user.id, email: user.email },
-    {
-      methodSectionId: Number(methodSectionId),
-      returnParams: {
-        category: typeof categorySlug === 'string' ? categorySlug : methodSection.slug,
-        methodic: typeof methodicSlug === 'string' ? methodicSlug : undefined,
-      },
-    },
-  );
+  const payment = await startAccessPayment('section', user, {
+    methodSectionId: Number(methodSectionId),
+  });
 
   return {
-    status: 'payment_required',
-    access: 'section',
+    ...payment,
     methodSectionId: Number(methodSectionId),
     methodSection: {
       id: methodSection.id,
@@ -32,35 +27,18 @@ export async function assignSection(user, { methodSectionId, categorySlug, metho
       subtitle: methodSection.subtitle,
       mobtitle: methodSection.mobtitle,
     },
-    ...payment,
   };
 }
 
-export async function getMySections(userId) {
-  const { UserMethodSection, MethodSection, User } = getModels();
+export async function getMySections(user) {
+  const { UserMethodSection, MethodSection } = getModels();
   const items = await UserMethodSection.findAll({
-    where: { userId },
-    include: [
-      {
-        model: MethodSection,
-        as: 'method_section',
-        attributes: ['id', 'documentId', 'slug', 'title', 'subtitle', 'mobtitle'],
-      },
-    ],
+    where: { userId: user.id },
+    include: [methodSectionBriefInclude(MethodSection)],
   });
 
-  const user = await User.findByPk(userId);
   return {
-    items: items.map((ums) => ({
-      id: ums.id,
-      documentId: ums.documentId,
-      createdAt: ums.createdAt,
-      updatedAt: ums.updatedAt,
-      publishedAt: null,
-      locale: null,
-      isPaid: ums.isPaid,
-      method_section: ums.method_section,
-    })),
-    makCardsAccess: user?.makCardsAccess === true,
+    items: formatUserMethodSectionList(items),
+    makCardsAccess: user.makCardsAccess === true,
   };
 }

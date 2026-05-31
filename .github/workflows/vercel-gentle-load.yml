@@ -1,0 +1,34 @@
+# Gentle load test against Vercel from GitHub Actions IP (обхід Hobby Attack Challenge на домашньому IP).
+name: Vercel gentle load
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_sec:
+        description: LOAD_DURATION_SEC
+        default: '300'
+        required: false
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run gentle Vercel load test
+        run: pnpm load:vercel-metrics:gentle
+        env:
+          LOAD_DURATION_SEC: ${{ inputs.duration_sec }}

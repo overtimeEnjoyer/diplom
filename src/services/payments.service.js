@@ -1,228 +1,144 @@
-import crypto from 'crypto';
 import { Op } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
+import { env } from '../config/env.js';
 import { getModels } from '../models/index.js';
+import { ApiError } from '../utils/ApiError.js';
 import { loadPricingSettings } from './pricing.service.js';
 
-const WFP_PAY_OFFLINE_URL = 'https://secure.wayforpay.com/pay?behavior=offline';
-const WFP_PAY_FALLBACK_URL = 'https://secure.wayforpay.com/pay';
+export const ACCESS_KINDS = ['mak-cards', 'medium', 'premium', 'section'];
 
-function requirePaymentConfig() {
-  const merchantAccount = (process.env.WAYFORPAY_MERCHANT_ACCOUNT || '').trim();
-  const merchantDomainName = (process.env.WAYFORPAY_MERCHANT_DOMAIN_NAME || '').trim();
-  const merchantSecretKey = (process.env.WAYFORPAY_MERCHANT_SECRET_KEY || '').trim();
-  const merchantPassword = (process.env.WAYFORPAY_MERCHANT_PASSWORD || '').trim();
-  const returnUrl = (process.env.WAYFORPAY_RETURN_URL || '').trim();
-  const serviceUrl = (process.env.WAYFORPAY_SERVICE_URL || '').trim();
-
-  if (!merchantAccount || !merchantDomainName || !merchantSecretKey || !returnUrl || !serviceUrl) {
-    throw new Error('WAYFORPAY env config is incomplete');
-  }
-
-  return { merchantAccount, merchantDomainName, merchantSecretKey, merchantPassword, returnUrl, serviceUrl };
-}
-
-function signHmacMd5(source, secret) {
-  return crypto.createHmac('md5', secret).update(source, 'utf8').digest('hex');
-}
-
-function nowSec() {
-  return Math.floor(Date.now() / 1000);
-}
-
-function productLabel(kind) {
-  if (kind === 'mak-cards') return 'MAK cards access';
-  if (kind === 'medium') return 'Tariff Medium';
-  if (kind === 'section') return 'Method section access';
-  return 'Tariff Premium';
-}
-
-function returnKind(kind) {
-  if (kind === 'mak-cards') return 'mak';
-  return kind;
-}
-
-function withReturnParams(baseUrl, kind, extraParams) {
-  const separator = baseUrl.includes('?') ? '&' : '?';
-  let url = `${baseUrl}${separator}kind=${encodeURIComponent(returnKind(kind))}`;
-  if (extraParams?.category) url += `&category=${encodeURIComponent(extraParams.category)}`;
-  if (extraParams?.methodic) url += `&methodic=${encodeURIComponent(extraParams.methodic)}`;
-  return url;
+function paymentProvider() {
+  const raw = String(process.env.PAYMENT_PROVIDER || '').trim().toLowerCase();
+  if (raw === 'mock' || raw === 'manual') return raw;
+  return env.isProduction ? 'manual' : 'mock';
 }
 
 function buildOrderReference(kind, userId, methodSectionId) {
   const random = Math.random().toString(36).slice(2, 8);
-  if (kind === 'section') return `RKM|section|${userId}|${methodSectionId || 0}|${Date.now()}|${random}`;
+  if (kind === 'section') {
+    return `RKM|section|${userId}|${methodSectionId || 0}|${Date.now()}|${random}`;
+  }
   return `RKM|${kind}|${userId}|${Date.now()}|${random}`;
 }
 
 export function parseOrderReference(orderReference) {
-  if (orderReference.startsWith('wp_')) {
-    const mUser = orderReference.match(/^wp_(\d+)_/);
-    const userId = mUser ? Number(mUser[1]) : NaN;
-    if (!Number.isFinite(userId) || userId <= 0) return null;
-    if (orderReference.includes('_tariff_medium_')) return { kind: 'medium', userId };
-    if (orderReference.includes('_tariff_premium_')) return { kind: 'premium', userId };
-    if (orderReference.includes('_mak_cards_') || orderReference.includes('_mak-cards_') || orderReference.includes('_mak_')) {
-      return { kind: 'mak-cards', userId };
-    }
-    return null;
-  }
-
-  const parts = orderReference.split('|');
+  const parts = String(orderReference || '').split('|');
   if (parts[0] !== 'RKM') return null;
-  const maybeKind = parts[1];
-  const userId = Number(parts[2]);
-  if (!Number.isFinite(userId) || userId <= 0) return null;
-  if (!['mak-cards', 'medium', 'premium', 'section'].includes(maybeKind)) return null;
 
-  if (maybeKind === 'section') {
+  const kind = parts[1];
+  const userId = Number(parts[2]);
+  if (!ACCESS_KINDS.includes(kind) || !Number.isFinite(userId) || userId <= 0) return null;
+
+  if (kind === 'section') {
     if (parts.length < 6) return null;
     const methodSectionId = Number(parts[3]);
     if (!Number.isFinite(methodSectionId) || methodSectionId <= 0) return null;
-    return { kind: maybeKind, userId, methodSectionId };
+    return { kind, userId, methodSectionId };
   }
 
   if (parts.length < 5) return null;
-  return { kind: maybeKind, userId };
+  return { kind, userId };
 }
 
-export function verifyWayForPayCallbackSignature(payload) {
-  const { merchantSecretKey, merchantPassword, merchantDomainName } = requirePaymentConfig();
-  const provided = String(payload.merchantSignature ?? '').trim().toLowerCase();
-  if (!provided) return false;
-  const keysToTry = [merchantSecretKey, merchantPassword].filter((k) => k.length > 0);
-
-  const merchantAccount = String(payload.merchantAccount ?? '');
-  const orderReference = String(payload.orderReference ?? '');
-  const amountRaw = payload.amount;
-  const currency = String(payload.currency ?? '');
-  const authCode = String(payload.authCode ?? '');
-  const cardPan = String(payload.cardPan ?? '');
-  const transactionStatus = String(payload.transactionStatus ?? '');
-  const reasonCodeRaw = payload.reasonCode;
-
-  const amountVariants = new Set([String(amountRaw ?? '')]);
-  const amountAsNumber = Number(amountRaw);
-  if (Number.isFinite(amountAsNumber)) {
-    amountVariants.add(amountAsNumber.toString());
-    amountVariants.add(amountAsNumber.toFixed(2));
-  }
-
-  const reasonCodeVariants = new Set([String(reasonCodeRaw ?? '')]);
-  const reasonAsNumber = Number(reasonCodeRaw);
-  if (Number.isFinite(reasonAsNumber)) reasonCodeVariants.add(reasonAsNumber.toString());
-
-  const makeExpected = (parts, key) => signHmacMd5(parts.join(';'), key).toLowerCase();
-  const authCodeVariants = [String(payload.authCode ?? ''), ''];
-  const cardPanVariants = [String(payload.cardPan ?? ''), ''];
-  const txStatusVariants = [String(payload.transactionStatus ?? ''), ''];
-  const parsedRef = parseOrderReference(orderReference);
-  const refParts = orderReference.split('|');
-  const refTimestampMsRaw = refParts.find((p) => /^\d{12,}$/.test(p)) || '';
-  const refTimestampSec = refTimestampMsRaw ? Math.floor(Number(refTimestampMsRaw) / 1000) : NaN;
-
-  for (const key of keysToTry) {
-    for (const amount of amountVariants) {
-      for (const reasonCode of reasonCodeVariants) {
-        const expectedShort = makeExpected([merchantAccount, orderReference, amount, currency], key);
-        if (provided === expectedShort) return true;
-
-        for (const ac of authCodeVariants) {
-          const expectedInvoiceWithAuth = makeExpected([merchantAccount, orderReference, amount, currency, ac], key);
-          if (provided === expectedInvoiceWithAuth) return true;
-
-          if (parsedRef && Number.isFinite(refTimestampSec) && refTimestampSec > 0) {
-            const name = productLabel(parsedRef.kind);
-            const expectedCreateInvoice = makeExpected(
-              [merchantAccount, merchantDomainName, orderReference, String(refTimestampSec), amount, currency, name, '1', amount],
-              key,
-            );
-            if (provided === expectedCreateInvoice) return true;
-          }
-
-          for (const cp of cardPanVariants) {
-            for (const tx of txStatusVariants) {
-              const expectedFull = makeExpected([merchantAccount, orderReference, amount, currency, ac, cp, tx, reasonCode], key);
-              if (provided === expectedFull) return true;
-            }
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
-export function buildWayForPayCallbackAck(orderReference) {
-  const { merchantSecretKey } = requirePaymentConfig();
-  const time = nowSec();
-  const status = 'accept';
-  const signature = signHmacMd5(`${orderReference};${status};${time}`, merchantSecretKey);
-  return { orderReference, status, time, signature };
-}
-
-export async function createAccessPayment(kind, user, options = {}) {
-  const config = requirePaymentConfig();
+async function createPendingPaymentIntent(kind, user, options = {}) {
   const { prices, currency } = await loadPricingSettings();
   const amount = prices[kind];
-  const orderReference = buildOrderReference(kind, user.id, options.methodSectionId);
-  const orderDate = nowSec();
-  const name = productLabel(kind);
-  const count = 1;
-
-  const signSource = [
-    config.merchantAccount,
-    config.merchantDomainName,
-    orderReference,
-    orderDate,
-    amount,
-    currency,
-    name,
-    count,
-    amount,
-  ].join(';');
-
-  const merchantSignature = signHmacMd5(signSource, config.merchantSecretKey);
-
-  const paymentData = {
-    transactionType: 'CREATE_INVOICE',
-    merchantAccount: config.merchantAccount,
-    merchantDomainName: config.merchantDomainName,
-    merchantAuthType: 'SimpleSignature',
-    merchantSignature,
-    apiVersion: 1,
-    language: 'UA',
-    returnUrl: withReturnParams(config.returnUrl, kind, options.returnParams),
-    serviceUrl: config.serviceUrl,
-    orderReference,
-    orderDate,
-    amount,
-    currency,
-    productName: [name],
-    productPrice: [amount],
-    productCount: [count],
-    clientEmail: user.email || undefined,
-    orderTimeout: 3600,
-  };
-
-  try {
-    const response = await fetch(WFP_PAY_OFFLINE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(paymentData),
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data?.url && typeof data.url === 'string') {
-        return { kind, orderReference, amount, currency, paymentUrl: data.url };
-      }
-    }
-  } catch {
-    // fallback
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw ApiError.internal(`Price not configured for access type: ${kind}`);
   }
 
-  return { kind, orderReference, amount, currency, paymentUrl: WFP_PAY_FALLBACK_URL, paymentData };
+  return {
+    orderReference: buildOrderReference(kind, user.id, options.methodSectionId),
+    amount,
+    currency,
+    provider: paymentProvider(),
+    type: kind,
+    status: 'pending',
+  };
+}
+
+function buildPaymentRequiredResponse(kind, intent) {
+  return {
+    status: 'payment_required',
+    access: kind,
+    payment_required: true,
+    payment: {
+      provider: intent.provider,
+      type: intent.type,
+      amount: intent.amount,
+      currency: intent.currency,
+      orderReference: intent.orderReference,
+      status: intent.status,
+    },
+    orderReference: intent.orderReference,
+    amount: intent.amount,
+    currency: intent.currency,
+  };
+}
+
+/** Start a pending payment for any access type (tariff, MAK, section). */
+export async function startAccessPayment(kind, user, options = {}) {
+  const intent = await createPendingPaymentIntent(kind, user, options);
+  return buildPaymentRequiredResponse(kind, intent);
+}
+
+export function activateMediumAccess(user) {
+  return startAccessPayment('medium', user);
+}
+
+export function activatePremiumAccess(user) {
+  return startAccessPayment('premium', user);
+}
+
+export function startMakCardsAccess(user) {
+  return startAccessPayment('mak-cards', user);
+}
+
+export function canConfirmMockPayment() {
+  return env.isTest || !env.isProduction || process.env.PAYMENT_MOCK_CONFIRM === 'true';
+}
+
+/** Demo/local confirmation — disabled in production unless PAYMENT_MOCK_CONFIRM=true. */
+export async function confirmMockPayment(orderReference, { userId } = {}) {
+  if (!canConfirmMockPayment()) {
+    throw ApiError.forbidden('Mock payment confirmation is disabled in production');
+  }
+  const parsed = parseOrderReference(orderReference);
+  if (!parsed) throw ApiError.badRequest('Unknown orderReference format');
+  if (userId != null && parsed.userId !== userId) {
+    throw ApiError.forbidden('Order does not belong to this user');
+  }
+  return confirmPayment(orderReference);
+}
+
+/** Admin/manual confirmation after offline payment verification. */
+export async function confirmManualPayment(orderReference) {
+  return confirmPayment(orderReference);
+}
+
+export async function confirmPayment(orderReference) {
+  const parsed = parseOrderReference(orderReference);
+  if (!parsed) throw ApiError.badRequest('Unknown orderReference format');
+
+  const amount = await expectedPrice(parsed.kind);
+  const currency = await expectedCurrency();
+
+  if (parsed.kind === 'section' && parsed.methodSectionId) {
+    await applyPaidSectionAccess(parsed.userId, parsed.methodSectionId);
+  } else {
+    await applyPaidAccess(parsed.kind, parsed.userId);
+  }
+
+  return {
+    ok: true,
+    paid: true,
+    orderReference,
+    kind: parsed.kind,
+    userId: parsed.userId,
+    methodSectionId: parsed.methodSectionId || null,
+    amount,
+    currency,
+  };
 }
 
 function txOpts(transaction) {
@@ -241,24 +157,34 @@ async function grantAllSectionsPaid(userId, transaction) {
     attributes: ['id'],
     ...txOpts(transaction),
   });
-  for (const section of sections) {
-    const existing = await UserMethodSection.findOne({
-      where: { userId, methodSectionId: section.id },
-      ...txOpts(transaction),
-    });
-    if (existing) {
-      if (!existing.isPaid) await existing.update({ isPaid: true }, txOpts(transaction));
-    } else {
-      await UserMethodSection.create(
-        {
-          documentId: uuidv4(),
-          userId,
-          methodSectionId: section.id,
-          isPaid: true,
-        },
-        txOpts(transaction),
-      );
-    }
+  if (!sections.length) return;
+
+  const sectionIds = sections.map((s) => s.id);
+  const existing = await UserMethodSection.findAll({
+    where: { userId, methodSectionId: { [Op.in]: sectionIds } },
+    ...txOpts(transaction),
+  });
+  const existingBySectionId = new Map(existing.map((row) => [row.methodSectionId, row]));
+
+  const unpaidIds = existing.filter((row) => !row.isPaid).map((row) => row.id);
+  if (unpaidIds.length) {
+    await UserMethodSection.update(
+      { isPaid: true },
+      { where: { id: { [Op.in]: unpaidIds } }, ...txOpts(transaction) },
+    );
+  }
+
+  const missingSectionIds = sectionIds.filter((id) => !existingBySectionId.has(id));
+  if (missingSectionIds.length) {
+    await UserMethodSection.bulkCreate(
+      missingSectionIds.map((methodSectionId) => ({
+        documentId: uuidv4(),
+        userId,
+        methodSectionId,
+        isPaid: true,
+      })),
+      txOpts(transaction),
+    );
   }
 }
 
@@ -339,10 +265,6 @@ export async function revokeAllMethodicsAccess(userId) {
   });
 }
 
-export function isSuccessTransactionStatus(status) {
-  return status === 'Approved';
-}
-
 export async function expectedPrice(kind) {
   const { prices } = await loadPricingSettings();
   return prices[kind];
@@ -378,10 +300,6 @@ export async function syncUserTariffFromAdmin(userId, { isPremium, isMedium, mak
     await applyPaidAccess('medium', userId, { skipUserFlagUpdate: true });
     return;
   }
-  if (!isPremium && !isMedium) {
-    await revokeAllMethodicsAccess(userId);
-    if (makCardsAccess) await applyPaidAccess('mak-cards', userId, { skipUserFlagUpdate: true });
-    return;
-  }
+  await revokeAllMethodicsAccess(userId);
   if (makCardsAccess) await applyPaidAccess('mak-cards', userId, { skipUserFlagUpdate: true });
 }

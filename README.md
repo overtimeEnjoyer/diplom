@@ -62,7 +62,7 @@ VITE_API_URL=http://localhost:3000
 
 - `DATABASE_URL` — PostgreSQL
 - `JWT_SECRET`
-- WayForPay (для оплат): `WAYFORPAY_*`
+- Оплати (опційно): `PAYMENT_PROVIDER`, `PAYMENT_MOCK_CONFIRM`
 
 ## Локальний запуск
 
@@ -105,9 +105,8 @@ DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rok_m_test pnpm test
 ## Деплой на Vercel
 
 1. Підключіть репозиторій до Vercel.
-2. Додайте env: `DATABASE_URL`, `JWT_SECRET`, `WAYFORPAY_*`, `CORS_ORIGINS`.
-3. `WAYFORPAY_SERVICE_URL` → `https://<your-app>.vercel.app/api/payments/wayforpay-callback`
-4. Після деплою виконайте міграції на production БД (`pnpm db:migrate` локально з prod `DATABASE_URL`).
+2. Додайте env: `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGINS`.
+3. Після деплою виконайте міграції на production БД (`pnpm db:migrate` локально з prod `DATABASE_URL`).
 
 Покроково: [`docs/deployment.md`](docs/deployment.md)
 
@@ -115,7 +114,7 @@ DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rok_m_test pnpm test
 
 ✅ Реєстрація / логін / JWT / профіль / скидання пароля  
 ✅ Методики (sections + methods) з `filters` / `populate` у query  
-✅ Ціни, WayForPay, тарифи Medium/Premium, розділи, МАК-картки  
+✅ Ціни, оплата (provider-agnostic), тарифи Medium/Premium, розділи, МАК-картки  
 ✅ Feedback, favorites МАК  
 
 ➕ **Додатково:** історія переглядів (`/api/progress/*`), admin REST, read-replica config  
@@ -133,6 +132,7 @@ DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rok_m_test pnpm test
 | [api.md](docs/api.md) | Endpoints, ролі, помилки |
 | [deployment.md](docs/deployment.md) | Vercel + PostgreSQL |
 | [testing.md](docs/testing.md) | Jest, покриття |
+| [thesis-testing-performance.md](docs/thesis-testing-performance.md) | Тестування + аналіз продуктивності (диплом) |
 
 ## Ліцензія
 

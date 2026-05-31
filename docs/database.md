@@ -98,7 +98,7 @@ erDiagram
 
 ### pricings
 
-Single-row (перший запис) — ціни для UI та WayForPay.
+Single-row (перший запис) — ціни для UI та payment intents.
 
 ### material_views
 

@@ -16,3 +16,10 @@ export const resetPasswordRules = [
   body('code').notEmpty(),
   body('password').isLength({ min: 6 }),
 ];
+
+export const emailOnlyRules = [body('email').isEmail().withMessage('Valid email is required')];
+
+export const emailCodeRules = [
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('code').isLength({ min: 4, max: 12 }).withMessage('Valid code is required'),
+];
