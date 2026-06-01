@@ -13,6 +13,7 @@ module.exports = {
        VALUES
          ('Public', 'public', 'Anonymous', :now, :now),
          ('Authenticated', 'authenticated', 'Registered user', :now, :now),
+         ('Specialist', 'specialist', 'Content specialist', :now, :now),
          ('Admin', 'admin', 'Administrator', :now, :now)
        ON CONFLICT (type) DO NOTHING`,
       { replacements: { now } },

@@ -66,7 +66,6 @@ export async function ensureDefaultPricing() {
   }
 }
 
-/** Public pricing row for GET /api/pricing (Strapi-compatible shape). */
 export async function getPublicPricing() {
   const { Pricing } = getModels();
   const row = await Pricing.findOne({ order: [['id', 'ASC']] });

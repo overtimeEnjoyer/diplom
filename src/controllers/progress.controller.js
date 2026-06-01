@@ -13,3 +13,13 @@ export async function myHistory(req, res) {
   });
   sendData(res, data);
 }
+
+export async function saveTestResult(req, res) {
+  sendJson(res, 201, {
+    data: await progressService.saveTestResult(req.user.id, req.body),
+  });
+}
+
+export async function listTestResults(req, res) {
+  sendData(res, await progressService.listTestResults(req.user.id, { limit: req.query.limit }));
+}

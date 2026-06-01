@@ -1,4 +1,3 @@
-/** Strapi-compatible user-method-section rows (shared by /auth/me and /user-method-sections/me). */
 export function formatUserMethodSectionRow(ums) {
   return {
     id: ums.id,

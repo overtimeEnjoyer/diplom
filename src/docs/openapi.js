@@ -245,7 +245,7 @@ export const openApiSpec = {
         tags: ['Content'],
         summary: 'Список секцій методик',
         parameters: [
-          { name: 'filters', in: 'query', schema: { type: 'string' }, description: 'Strapi-style filters' },
+          { name: 'filters', in: 'query', schema: { type: 'string' }, description: 'Query filters (e.g. filters[slug][$eq]=...)' },
           { name: 'populate', in: 'query', schema: { type: 'string' } },
           { name: 'pagination[page]', in: 'query', schema: { type: 'integer' } },
           { name: 'pagination[pageSize]', in: 'query', schema: { type: 'integer' } },

@@ -7,6 +7,7 @@ const router = Router();
 router.get('/method-sections', asyncHandler(contentController.listMethodSections));
 router.get('/method-sections/:id', asyncHandler(contentController.getMethodSection));
 router.get('/methods', asyncHandler(contentController.listMethods));
+router.get('/methods/search', asyncHandler(contentController.searchMethods));
 router.get('/methods/:id', asyncHandler(contentController.getMethod));
 router.get('/pricing', asyncHandler(contentController.getPricing));
 

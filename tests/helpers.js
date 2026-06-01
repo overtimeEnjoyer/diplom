@@ -27,6 +27,7 @@ async function seedTestData() {
 
   const authRole = await Role.create({ name: 'Authenticated', type: 'authenticated' });
   const adminRole = await Role.create({ name: 'Admin', type: 'admin' });
+  await Role.create({ name: 'Specialist', type: 'specialist' });
 
   await User.create({
     documentId: uuidv4(),

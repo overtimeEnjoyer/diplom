@@ -2,7 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { env } from './config/env.js';
+import * as wayforpayController from './controllers/wayforpay.controller.js';
 import { validateEnv } from './config/validateEnv.js';
 import { connectDatabase, getSequelize } from './config/database.js';
 import { getModels, initModels } from './models/index.js';
@@ -11,6 +14,9 @@ import apiRoutes from './routes/index.js';
 import { setupSwagger } from './config/swagger.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 import { asyncHandler } from './utils/asyncHandler.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const adminStaticDir = path.join(__dirname, '../public/admin');
 
 let appReady;
 
@@ -48,6 +54,16 @@ export async function createApp() {
   app.use(helmet({ contentSecurityPolicy: false }));
   if (!env.isTest) app.use(morgan(env.isProduction ? 'combined' : 'dev'));
 
+  app.post(
+    '/api/payments/wayforpay-callback',
+    express.raw({ type: '*/*', limit: '1mb' }),
+    (req, _res, next) => {
+      req.wayforpayRawBody = req.body;
+      next();
+    },
+    asyncHandler(wayforpayController.callback),
+  );
+
   app.get('/health', (_req, res) =>
     res.json({
       ok: true,
@@ -81,6 +97,11 @@ export async function createApp() {
 
   setupSwagger(app);
 
+  app.use('/admin', express.static(adminStaticDir));
+  app.get('/admin', (_req, res) => {
+    res.sendFile(path.join(adminStaticDir, 'index.html'));
+  });
+
   if (process.env.ENABLE_LOAD_TEST_ROUTES === 'true') {
     app.get('/load-test/cpu', (_req, res) => {
       let acc = 0;
@@ -96,19 +117,9 @@ export async function createApp() {
     });
   }
 
-  app.get('/', (_req, res) =>
-    res.json({
-      ok: true,
-      service: 'rok-m-backend',
-      health: '/health',
-      docs: '/api-docs',
-      openApi: '/api-docs.json',
-      api: {
-        pricing: '/api/pricing',
-        methodSections: '/api/method-sections',
-      },
-    }),
-  );
+  app.get('/', (_req, res) => {
+    res.redirect(302, '/admin');
+  });
 
   app.use(async (req, res, next) => {
     if (!req.path.startsWith('/api')) return next();

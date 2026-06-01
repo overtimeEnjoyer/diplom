@@ -7,5 +7,7 @@ const router = Router();
 
 router.post('/methods/:methodId/view', authenticate, asyncHandler(progressController.recordView));
 router.get('/me', authenticate, asyncHandler(progressController.myHistory));
+router.post('/tests', authenticate, asyncHandler(progressController.saveTestResult));
+router.get('/tests/me', authenticate, asyncHandler(progressController.listTestResults));
 
 export default router;

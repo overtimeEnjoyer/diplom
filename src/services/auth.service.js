@@ -81,6 +81,24 @@ export function verifyJwt(token) {
   return jwt.verify(token, env.jwtSecret);
 }
 
+function issueMfaToken(userId) {
+  return jwt.sign({ id: userId, scope: 'mfa' }, env.jwtSecret, { expiresIn: env.mfaTokenExpiresIn });
+}
+
+function verifyMfaToken(token) {
+  const payload = jwt.verify(token, env.jwtSecret);
+  if (payload.scope !== 'mfa' || !payload.id) throw ApiError.unauthorized('Invalid MFA token');
+  return payload.id;
+}
+
+async function sendMfaLoginEmail(to, code) {
+  try {
+    await sendPasswordResetEmail(to, code);
+  } catch (err) {
+    console.error('[auth] MFA email failed', err.message);
+  }
+}
+
 export async function register({ email, username, password }) {
   const { User, Role } = getModels();
   if (!email || !username || !password) throw ApiError.badRequest('Email, username and password are required');
@@ -122,7 +140,61 @@ export async function loginLocal({ identifier, password }) {
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) throw ApiError.badRequest('Invalid identifier or password');
 
+  if (user.mfaEnabled) {
+    const code = generateCode();
+    await user.update({
+      mfaLoginCode: hashCode(code),
+      mfaLoginExpires: new Date(Date.now() + CODE_TTL_MS),
+    });
+    await sendMfaLoginEmail(user.email, code);
+    if (!env.isProduction) console.info(`[auth] MFA login code for ${user.email} (dev log)`);
+    return {
+      status: 'mfa_required',
+      mfaToken: issueMfaToken(user.id),
+      message: 'MFA code sent to your email',
+    };
+  }
+
   return { jwt: issueJwt(user.id), user: sanitizeUser(user) };
+}
+
+export async function verifyMfaLogin({ mfaToken, code }) {
+  const { User } = getModels();
+  if (!mfaToken || !code) throw ApiError.badRequest('mfaToken and code are required');
+
+  const userId = verifyMfaToken(mfaToken);
+  const user = await User.unscoped().findByPk(userId);
+  if (!user || user.blocked) throw ApiError.unauthorized();
+
+  if (!user.mfaLoginCode || !user.mfaLoginExpires) {
+    throw ApiError.badRequest('MFA session expired');
+  }
+  if (user.mfaLoginExpires < new Date()) throw ApiError.badRequest('Code expired');
+  if (hashCode(code) !== user.mfaLoginCode) throw ApiError.badRequest('Invalid code');
+
+  await user.update({ mfaLoginCode: null, mfaLoginExpires: null });
+  return { jwt: issueJwt(user.id), user: sanitizeUser(user) };
+}
+
+export async function enableMfa(userId) {
+  const { User } = getModels();
+  const user = await User.unscoped().findByPk(userId);
+  if (!user) throw ApiError.notFound();
+  await user.update({ mfaEnabled: true });
+  return { ok: true, mfaEnabled: true };
+}
+
+export async function disableMfa(userId) {
+  const { User } = getModels();
+  const user = await User.unscoped().findByPk(userId);
+  if (!user) throw ApiError.notFound();
+  await user.update({
+    mfaEnabled: false,
+    mfaSecret: null,
+    mfaLoginCode: null,
+    mfaLoginExpires: null,
+  });
+  return { ok: true, mfaEnabled: false };
 }
 
 export async function requestEmailCode(email) {
@@ -200,14 +272,16 @@ export async function resetPassword({ email, code, password }) {
 
 export async function getMe(userId) {
   const { User, Role, UserMethodSection, MethodSection } = getModels();
-  const user = await User.findByPk(userId, { include: [{ model: Role, as: 'role' }] });
+
+  const [user, methodSections] = await Promise.all([
+    User.findByPk(userId, { include: [{ model: Role, as: 'role' }] }),
+    UserMethodSection.findAll({
+      where: { userId },
+      include: [methodSectionBriefInclude(MethodSection)],
+    }),
+  ]);
+
   if (!user) throw ApiError.notFound();
-
-  const methodSections = await UserMethodSection.findAll({
-    where: { userId },
-    include: [methodSectionBriefInclude(MethodSection)],
-  });
-
   return formatMeResponse(user, methodSections);
 }
 
@@ -243,7 +317,7 @@ export async function updateProfile(userId, { username, email, password }) {
   return sanitizeUser(updated);
 }
 
-function sanitizeUser(user) {
+export function sanitizeUser(user) {
   const plain = user.toJSON();
   return {
     id: plain.id,
@@ -271,6 +345,7 @@ function formatMeResponse(user, methodSections) {
     isMedium: plain.isMedium === true,
     isPremium: plain.isPremium === true,
     makFavoriteCardIds: normalizeFavoriteCardIds(plain.makFavoriteCardIds),
+    mfaEnabled: plain.mfaEnabled === true,
     methodSections: formatUserMethodSectionList(methodSections),
     createdAt: plain.createdAt,
     updatedAt: plain.updatedAt,

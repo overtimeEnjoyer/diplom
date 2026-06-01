@@ -40,6 +40,9 @@
 | `tests/progress.test.js` | запис перегляду, історія |
 | `tests/admin.test.js` | 401/403, admin pricing/feedbacks |
 | `tests/payments.test.js` | `payment_required`, confirm + grant, 401 без JWT |
+| `tests/thesis-features.test.js` | MFA, full-text search, presign, Supabase sync |
+| `tests/swagger.test.js` | OpenAPI `/api-docs.json` |
+| `tests/load-routes.test.js` | probe routes для load-тестів |
 
 Допоміжні файли: `tests/setup.js`, `tests/helpers.js` (підняття app, seed, login).
 
@@ -57,8 +60,8 @@ pnpm test
 
 При доступній PostgreSQL:
 
-- **6 test suites, 22 tests — усі passed**
-- Покрито: auth, контент, користувацькі розділи, progress, admin, payment flow (mock confirm)
+- **9 test suites, 35 tests — усі passed**
+- Покрито: auth, контент, користувацькі розділи, progress, admin, payment flow (mock confirm), thesis-features (MFA/search/presign), Swagger
 
 CI: `.github/workflows/ci.yml` (GitHub Actions + Postgres service).
 

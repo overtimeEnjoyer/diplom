@@ -20,6 +20,7 @@
     "migrate:legacy-db": "tsx scripts/migrate-legacy-db.ts",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
+    "start:here": "bash scripts/first-run.sh",
     "setup:local": "bash scripts/setup-local.sh",
     "db:prepare-new": "bash scripts/prepare-new-db.sh",
     "load:auth": "node tests/load/auth-load.js",
@@ -44,7 +45,9 @@
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.5",
     "swagger-ui-express": "^5.0.1",
-    "uuid": "^11.0.5"
+    "uuid": "^11.0.5",
+    "@aws-sdk/client-s3": "^3.750.0",
+    "@aws-sdk/s3-request-presigner": "^3.750.0"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",

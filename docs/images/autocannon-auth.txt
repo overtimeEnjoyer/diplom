@@ -1,5 +1,0 @@
-
-=== auth: POST /api/auth/local ===
-connections=20 duration=15.02s pipelining=1
-req/s avg=4126.9
-latency avg=4ms p50=4ms p95=- p99=10ms

@@ -41,4 +41,34 @@ describe('Admin API', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.currency).toBe('UAH');
   });
+
+  it('allows specialist to list methods but not feedbacks', async () => {
+    const reg = await request(app).post('/api/auth/register').send({
+      email: 'specialist@test.local',
+      username: 'specialist_user',
+      password: 'password123',
+    });
+    expect([200, 201]).toContain(reg.status);
+
+    const { getModels } = await import('../src/models/index.js');
+    const { User, Role } = getModels();
+    const specialistRole = await Role.findOne({ where: { type: 'specialist' } });
+    await User.update({ roleId: specialistRole.id }, { where: { email: 'specialist@test.local' } });
+
+    const login = await request(app).post('/api/auth/local').send({
+      identifier: 'specialist@test.local',
+      password: 'password123',
+    });
+    const jwt = login.body.jwt;
+
+    const methods = await request(app)
+      .get('/api/admin/methods')
+      .set('Authorization', `Bearer ${jwt}`);
+    expect(methods.status).toBe(200);
+
+    const feedbacks = await request(app)
+      .get('/api/admin/feedbacks')
+      .set('Authorization', `Bearer ${jwt}`);
+    expect(feedbacks.status).toBe(403);
+  });
 });

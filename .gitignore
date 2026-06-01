@@ -133,3 +133,5 @@ legacy/
 data.db
 *.dump
 local.dump.strapi-updater.json
+.vercel
+.env*

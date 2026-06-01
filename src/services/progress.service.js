@@ -1,5 +1,6 @@
 import { getModels } from '../models/index.js';
 import { ApiError } from '../utils/ApiError.js';
+import * as testResultsService from './testResults.service.js';
 
 const METHOD_SUMMARY_ATTRS = ['id', 'documentId', 'slug', 'title'];
 
@@ -34,3 +35,6 @@ export async function listViewHistory(userId, { limit = 50 } = {}) {
     method: row.method,
   }));
 }
+
+export const saveTestResult = testResultsService.saveTestResult;
+export const listTestResults = testResultsService.listMyTestResults;

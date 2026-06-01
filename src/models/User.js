@@ -22,16 +22,33 @@ export function initUser(sequelize) {
       isMedium: { type: DataTypes.BOOLEAN, defaultValue: false, field: 'is_medium' },
       isPremium: { type: DataTypes.BOOLEAN, defaultValue: false, field: 'is_premium' },
       makFavoriteCardIds: { type: DataTypes.JSONB, field: 'mak_favorite_card_ids' },
+      supabaseUid: { type: DataTypes.UUID, allowNull: true, unique: true, field: 'supabase_uid' },
+      mfaEnabled: { type: DataTypes.BOOLEAN, defaultValue: false, field: 'mfa_enabled' },
+      mfaSecret: { type: DataTypes.STRING(128), field: 'mfa_secret' },
+      mfaLoginCode: { type: DataTypes.STRING(128), field: 'mfa_login_code' },
+      mfaLoginExpires: { type: DataTypes.DATE, field: 'mfa_login_expires' },
     },
     {
       sequelize,
       tableName: 'users',
       underscored: true,
       defaultScope: {
-        attributes: { exclude: ['password', 'emailConfirmationCode', 'passwordResetCode'] },
+        attributes: {
+          exclude: [
+            'password',
+            'emailConfirmationCode',
+            'passwordResetCode',
+            'mfaSecret',
+            'mfaLoginCode',
+          ],
+        },
       },
       scopes: {
-        withSecrets: { attributes: { include: ['password', 'emailConfirmationCode', 'passwordResetCode'] } },
+        withSecrets: {
+          attributes: {
+            include: ['password', 'emailConfirmationCode', 'passwordResetCode', 'mfaSecret', 'mfaLoginCode'],
+          },
+        },
       },
     },
   );

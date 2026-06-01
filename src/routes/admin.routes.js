@@ -7,26 +7,34 @@ import { confirmPaymentRules } from '../validators/payment.validator.js';
 import { validate } from '../middlewares/validation.middleware.js';
 
 const router = Router();
+const adminOnly = requireRole('admin');
+const contentStaff = requireRole('admin', 'specialist');
 
-router.use(authenticate, requireRole('admin'));
+router.use(authenticate);
 
-router.post('/payments/confirm', confirmPaymentRules, validate, asyncHandler(adminController.confirmPayment));
+router.post(
+  '/payments/confirm',
+  adminOnly,
+  confirmPaymentRules,
+  validate,
+  asyncHandler(adminController.confirmPayment),
+);
 
-router.get('/feedbacks', asyncHandler(adminController.listFeedbacks));
-router.patch('/feedbacks/:id/processed', asyncHandler(adminController.markFeedbackProcessed));
+router.get('/feedbacks', adminOnly, asyncHandler(adminController.listFeedbacks));
+router.patch('/feedbacks/:id/processed', adminOnly, asyncHandler(adminController.markFeedbackProcessed));
 
-router.get('/pricing', asyncHandler(adminController.getPricing));
-router.put('/pricing', asyncHandler(adminController.updatePricing));
+router.get('/pricing', adminOnly, asyncHandler(adminController.getPricing));
+router.put('/pricing', adminOnly, asyncHandler(adminController.updatePricing));
 
-router.get('/users', asyncHandler(adminController.listUsers));
-router.patch('/users/:id/tariff', asyncHandler(adminController.updateUserTariff));
+router.get('/users', adminOnly, asyncHandler(adminController.listUsers));
+router.patch('/users/:id/tariff', adminOnly, asyncHandler(adminController.updateUserTariff));
 
-router.get('/method-sections', asyncHandler(adminController.listMethodSections));
-router.post('/method-sections', asyncHandler(adminController.createMethodSection));
-router.patch('/method-sections/:id', asyncHandler(adminController.updateMethodSection));
+router.get('/method-sections', contentStaff, asyncHandler(adminController.listMethodSections));
+router.post('/method-sections', contentStaff, asyncHandler(adminController.createMethodSection));
+router.patch('/method-sections/:id', contentStaff, asyncHandler(adminController.updateMethodSection));
 
-router.get('/methods', asyncHandler(adminController.listMethods));
-router.post('/methods', asyncHandler(adminController.createMethod));
-router.patch('/methods/:id', asyncHandler(adminController.updateMethod));
+router.get('/methods', contentStaff, asyncHandler(adminController.listMethods));
+router.post('/methods', contentStaff, asyncHandler(adminController.createMethod));
+router.patch('/methods/:id', contentStaff, asyncHandler(adminController.updateMethod));
 
 export default router;

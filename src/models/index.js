@@ -7,6 +7,7 @@ import { initUserMethodSection, UserMethodSection } from './UserMethodSection.js
 import { initPricing, Pricing } from './Pricing.js';
 import { initFeedback, Feedback } from './Feedback.js';
 import { initMaterialView, MaterialView } from './MaterialView.js';
+import { initTestResult, TestResult } from './TestResult.js';
 
 let modelsInitialized = false;
 
@@ -23,6 +24,7 @@ export function initModels(sequelize = getSequelize()) {
   initPricing(sequelize);
   initFeedback(sequelize);
   initMaterialView(sequelize);
+  initTestResult(sequelize);
 
   Role.hasMany(User, { foreignKey: 'role_id', as: 'users' });
   User.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
@@ -40,6 +42,11 @@ export function initModels(sequelize = getSequelize()) {
   Method.hasMany(MaterialView, { foreignKey: 'method_id', as: 'materialViews' });
   MaterialView.belongsTo(Method, { foreignKey: 'method_id', as: 'method' });
 
+  User.hasMany(TestResult, { foreignKey: 'user_id', as: 'testResults' });
+  TestResult.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+  Method.hasMany(TestResult, { foreignKey: 'method_id', as: 'testResults' });
+  TestResult.belongsTo(Method, { foreignKey: 'method_id', as: 'method' });
+
   modelsInitialized = true;
   return getModels();
 }
@@ -54,6 +61,7 @@ export function getModels() {
     Pricing,
     Feedback,
     MaterialView,
+    TestResult,
     sequelize: getSequelize(),
   };
 }

@@ -8,10 +8,16 @@ import contentRoutes from './content.routes.js';
 import feedbackRoutes from './feedback.routes.js';
 import progressRoutes from './progress.routes.js';
 import adminRoutes from './admin.routes.js';
+import contentAliasRoutes from './contentAlias.routes.js';
+import userAliasRoutes from './userAlias.routes.js';
+import uploadsRoutes from './uploads.routes.js';
 
 const router = Router();
 
 router.use('/auth', authRoutes);
+router.use('/content', contentAliasRoutes);
+router.use('/user', userAliasRoutes);
+router.use('/uploads', uploadsRoutes);
 router.use('/mak-cards', makCardsRoutes);
 router.use('/payments', paymentsRoutes);
 router.use('/tariffs', tariffsRoutes);

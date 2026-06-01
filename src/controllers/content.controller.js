@@ -21,3 +21,7 @@ export async function getMethod(req, res) {
 export async function getPricing(req, res) {
   sendJson(res, 200, await getPublicPricing());
 }
+
+export async function searchMethods(req, res) {
+  sendJson(res, 200, await contentService.searchMethods(req.query));
+}

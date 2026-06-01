@@ -17,7 +17,8 @@ function inferSslFromUrl(url) {
 
 function useSsl(url) {
   if (process.env.DATABASE_SSL === 'true') return true;
-  if (process.env.DATABASE_SSL === 'false') return false;
+  // `DATABASE_SSL=false` is for local Postgres only; Neon/Supabase URLs still need SSL.
+  if (process.env.DATABASE_SSL === 'false') return inferSslFromUrl(url);
   return inferSslFromUrl(url);
 }
 
@@ -96,6 +97,15 @@ export function getSequelize() {
       : buildSequelize();
   }
   return sequelizeInstance;
+}
+
+export function hasReadReplicas() {
+  return env.databaseReadReplicaUrls.length > 0;
+}
+
+/** Read pool for raw SQL (FTS); falls back to primary when replicas are not configured. */
+export function getCatalogSequelize() {
+  return hasReadReplicas() ? getReadSequelize() : getSequelize();
 }
 
 /** Optional read replicas for read-heavy queries (round-robin). */

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ROK — Адмін</title>
+    <link rel="stylesheet" href="/admin/admin.css" />
+  </head>
+  <body>
+    <div id="login-screen">
+      <div class="login-card">
+        <h1>ROK Mental Health</h1>
+        <p>Вхід для адміністратора або фахівця</p>
+        <form id="login-form">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" autocomplete="username" required />
+          <label for="login-password">Пароль</label>
+          <input id="login-password" type="password" autocomplete="current-password" required />
+          <button type="submit">Увійти</button>
+        </form>
+        <div id="login-msg" class="msg hidden"></div>
+      </div>
+    </div>
+
+    <div id="app-shell" class="hidden">
+      <aside class="sidebar">
+        <h2>Адмін-панель</h2>
+        <p id="user-label" style="font-size:0.8rem;opacity:0.9;margin:0 0 0.5rem;word-break:break-all"></p>
+        <button type="button" class="nav-btn active" data-panel="feedbacks" data-admin-only>Звернення</button>
+        <button type="button" class="nav-btn" data-panel="users" data-admin-only>Користувачі</button>
+        <button type="button" class="nav-btn" data-panel="pricing" data-admin-only>Ціни</button>
+        <button type="button" class="nav-btn" data-panel="payments" data-admin-only>Оплати</button>
+        <button type="button" class="nav-btn" data-panel="sections" data-content-only>Розділи</button>
+        <button type="button" class="nav-btn" data-panel="methods" data-content-only>Методики</button>
+        <button type="button" class="logout" id="logout-btn">Вийти</button>
+      </aside>
+      <main class="main">
+        <div id="panel"></div>
+      </main>
+    </div>
+
+    <script src="/admin/admin.js" defer></script>
+  </body>
+</html>

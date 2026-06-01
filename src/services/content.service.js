@@ -1,4 +1,8 @@
+import { QueryTypes } from 'sequelize';
 import { getModels } from '../models/index.js';
+import { getCatalogSequelize } from '../config/database.js';
+import { env } from '../config/env.js';
+import { cacheGet, cacheSet, cacheKey } from '../utils/cache.js';
 import { parsePagination, paginationMeta } from '../utils/pagination.js';
 import {
   methodSectionBriefInclude,
@@ -71,6 +75,10 @@ function formatMethod(row) {
 }
 
 export async function listMethodSections(query) {
+  const cacheId = cacheKey('method-sections', query);
+  const cached = cacheGet(cacheId);
+  if (cached) return cached;
+
   const { MethodSection, Method } = getModels();
   const { page, pageSize, limit, offset } = parsePagination(query);
   const where = parsePublishedWhere(query);
@@ -88,9 +96,57 @@ export async function listMethodSections(query) {
     distinct: true,
   });
 
-  return {
+  const result = {
     data: rows.map((r) => formatMethodSection(r, withMethods)),
     meta: paginationMeta(page, pageSize, count),
+  };
+  cacheSet(cacheId, result, env.contentCacheTtlMs);
+  return result;
+}
+
+export async function searchMethods(query) {
+  const q = String(query.q || query.search || '').trim();
+  if (!q) throw ApiError.badRequest('Query parameter q or search is required');
+
+  const { Method, MethodSection } = getModels();
+  const sequelize = getCatalogSequelize();
+  const { page, pageSize, limit, offset } = parsePagination(query);
+
+  const rows = await sequelize.query(
+    `
+    SELECT m.id
+    FROM methods m
+    WHERE m.published_at IS NOT NULL
+      AND to_tsvector(
+        'simple',
+        coalesce(m.title, '') || ' ' ||
+        coalesce(m.approach, '') || ' ' ||
+        coalesce(m.target_audience, '') || ' ' ||
+        coalesce(m.short_instruction::text, '')
+      ) @@ plainto_tsquery('simple', :q)
+    ORDER BY m.id ASC
+    LIMIT :limit OFFSET :offset
+    `,
+    {
+      replacements: { q, limit, offset },
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  const ids = rows.map((r) => r.id);
+  if (!ids.length) {
+    return { data: [], meta: paginationMeta(page, pageSize, 0) };
+  }
+
+  const methods = await Method.findAll({
+    where: { id: ids },
+    include: [methodSectionBriefInclude(MethodSection)],
+    order: [['id', 'ASC']],
+  });
+
+  return {
+    data: methods.map(formatMethod),
+    meta: paginationMeta(page, pageSize, ids.length),
   };
 }
 
@@ -138,3 +194,5 @@ export async function getMethod(idOrDocumentId, query) {
   if (!row) throw ApiError.notFound('Method not found');
   return { data: formatMethod(row), meta: {} };
 }
+
+export { formatMethod, formatMethodSection };
