@@ -39,6 +39,12 @@ jobs:
 
       - name: Validate deployment secrets
         run: |
+          trim() { printf '%s' "$1" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
+          export DATABASE_URL="$(trim "$DATABASE_URL")"
+          export VERCEL_TOKEN="$(trim "$VERCEL_TOKEN")"
+          export VERCEL_ORG_ID="$(trim "$VERCEL_ORG_ID")"
+          export VERCEL_PROJECT_ID="$(trim "$VERCEL_PROJECT_ID")"
+
           missing=0
           for name in DATABASE_URL VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
             if [ -z "${!name}" ]; then
@@ -48,6 +54,10 @@ jobs:
           done
           if [ "$missing" -ne 0 ]; then
             echo "Add secrets under Settings → Secrets → Actions (or Environment production)."
+            exit 1
+          fi
+          if echo "$VERCEL_PROJECT_ID" | grep -q '[[:space:]]'; then
+            echo "::error::VERCEL_PROJECT_ID must be a single id (no spaces). Re-save the secret without trailing newline."
             exit 1
           fi
           if echo "$DATABASE_URL" | grep -Eq 'localhost|127\.0\.0\.1'; then
@@ -70,6 +80,10 @@ jobs:
         id: deploy
         run: |
           set -euo pipefail
+          trim() { printf '%s' "$1" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
+          export VERCEL_TOKEN="$(trim "$VERCEL_TOKEN")"
+          export VERCEL_ORG_ID="$(trim "$VERCEL_ORG_ID")"
+          export VERCEL_PROJECT_ID="$(trim "$VERCEL_PROJECT_ID")"
           pnpm dlx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" | tee deploy.log
           url=$(grep -Eo 'https://[^ ]+\.vercel\.app' deploy.log | tail -1)
           if [ -z "$url" ]; then

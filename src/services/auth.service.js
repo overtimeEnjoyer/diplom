@@ -9,6 +9,7 @@ import { getModels } from '../models/index.js';
 import { normalizeFavoriteCardIds } from './makFavorites.service.js';
 import { formatUserMethodSectionList } from '../serializers/userMethodSection.serializer.js';
 import { methodSectionBriefInclude } from '../utils/contentQuery.js';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout.js';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const SENDGRID_TEMPLATE_PASSWORD_RESET = 'd-f428088d3f7743fe88ff7c3521e0e782';
@@ -35,7 +36,7 @@ async function sendPasswordResetEmail(to, code) {
   if (brevoApiKey && brevoTemplateId) {
     const fromEmail = String(process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_FROM || 'no-reply@example.com').trim();
     const fromName = String(process.env.BREVO_SENDER_NAME || 'ROK Mental Health').trim();
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const response = await fetchWithTimeout('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'api-key': brevoApiKey },
       body: JSON.stringify({
@@ -54,7 +55,7 @@ async function sendPasswordResetEmail(to, code) {
 
   const sendgridKey = process.env.SENDGRID_API_KEY;
   if (sendgridKey) {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    const response = await fetchWithTimeout('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${sendgridKey}`,

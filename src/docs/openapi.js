@@ -266,12 +266,90 @@ export const openApiSpec = {
         responses: { 200: { description: '{ data }' } },
       },
     },
+    '/methods/search': {
+      get: {
+        tags: ['Content'],
+        summary: 'Пошук методик (FTS)',
+        parameters: [
+          { name: 'q', in: 'query', schema: { type: 'string' } },
+          { name: 'symptom', in: 'query', schema: { type: 'string' }, description: 'Фільтр за симптоматикою / approach' },
+          { name: 'approach', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { 200: { description: '{ data, meta }' }, 400: { description: 'q required' } },
+      },
+    },
+    '/methods/favorites': {
+      get: {
+        tags: ['Content'],
+        summary: 'Обрані методики (улюблені техніки)',
+        security: [{ bearerAuth: [] }],
+        responses: { 200: { description: '{ favoriteMethodIds, methods }' } },
+      },
+      put: {
+        tags: ['Content'],
+        summary: 'Замінити список обраних методик',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['methodIds'],
+                properties: { methodIds: { type: 'array', items: { type: 'integer' } } },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'OK' } },
+      },
+      post: {
+        tags: ['Content'],
+        summary: 'Додати методику в обране',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['methodId'],
+                properties: { methodId: { type: 'integer' } },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'OK' } },
+      },
+    },
+    '/methods/favorites/toggle': {
+      post: {
+        tags: ['Content'],
+        summary: 'Перемкнути обрану методику',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['methodId'],
+                properties: { methodId: { type: 'integer' } },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'OK' } },
+      },
+    },
     '/methods': {
       get: {
         tags: ['Content'],
         summary: 'Список методик',
         parameters: [
           { name: 'filters[slug][$eq]', in: 'query', schema: { type: 'string' } },
+          { name: 'symptom', in: 'query', schema: { type: 'string' }, description: 'Категоризація за симптоматикою (approach, audience, goal, title)' },
+          { name: 'approach', in: 'query', schema: { type: 'string' } },
           { name: 'populate', in: 'query', schema: { type: 'string' } },
         ],
         responses: {

@@ -36,6 +36,19 @@ pnpm dev
 pnpm test
 ```
 
-## Диплом
+## Диплом (реалізовано в API)
+
+| Тема диплому | Реалізація |
+|--------------|------------|
+| Обрані методики | `GET/PUT/POST /api/methods/favorites`, alias `GET/POST /api/user/methods/favorites` (МАК — `/api/mak-cards/favorites`) |
+| Фільтр за симптоматикою | `?symptom=` / `?approach=` на `GET /api/methods`, `GET /api/methods/search` |
+| Promise.all каталогу | паралельне завантаження у `getMethodBySlug` |
+| AbortController | `fetchWithTimeout` для email і Supabase presign |
+| Supabase Auth | якщо задано `SUPABASE_JWT_SECRET` — Bearer перевіряється спочатку Supabase, потім локальний JWT |
+| Read replica | `DATABASE_READ_REPLICA_URL` + `catalogQueryOptions()` |
+| Redis / кеш | `REDIS_URL` або in-memory; `docker compose --profile cache up -d redis` |
+| BRIN analytics | індекс `material_views_viewed_at_brin` (міграція `20260602120000`) |
+
+Prod: `SUPABASE_JWT_SECRET` + `POST /api/auth/sync` для зв’язку з локальним профілем.
 
 `docs/thesis-testing-performance.md`

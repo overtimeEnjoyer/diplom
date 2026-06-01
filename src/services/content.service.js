@@ -3,6 +3,7 @@ import { getModels } from '../models/index.js';
 import { getCatalogSequelize } from '../config/database.js';
 import { env } from '../config/env.js';
 import { cacheGet, cacheSet, cacheKey } from '../utils/cache.js';
+import { catalogQueryOptions } from '../utils/catalogDb.js';
 import { parsePagination, paginationMeta } from '../utils/pagination.js';
 import {
   methodSectionBriefInclude,
@@ -12,6 +13,7 @@ import {
   resolveIdOrDocumentWhere,
   wantsPopulate,
 } from '../utils/contentQuery.js';
+import { applySymptomFilter, parseSymptomQuery, symptomSqlFragment } from '../utils/symptomFilter.js';
 import { onlyPublished } from '../utils/queryFilters.js';
 import { ApiError } from '../utils/ApiError.js';
 
@@ -76,7 +78,7 @@ function formatMethod(row) {
 
 export async function listMethodSections(query) {
   const cacheId = cacheKey('method-sections', query);
-  const cached = cacheGet(cacheId);
+  const cached = await cacheGet(cacheId);
   if (cached) return cached;
 
   const { MethodSection, Method } = getModels();
@@ -94,13 +96,14 @@ export async function listMethodSections(query) {
     offset,
     order: [['id', 'ASC']],
     distinct: true,
+    ...catalogQueryOptions(),
   });
 
   const result = {
     data: rows.map((r) => formatMethodSection(r, withMethods)),
     meta: paginationMeta(page, pageSize, count),
   };
-  cacheSet(cacheId, result, env.contentCacheTtlMs);
+  await cacheSet(cacheId, result, env.contentCacheTtlMs);
   return result;
 }
 
@@ -108,10 +111,12 @@ export async function searchMethods(query) {
   const q = String(query.q || query.search || '').trim();
   if (!q) throw ApiError.badRequest('Query parameter q or search is required');
 
+  const symptom = parseSymptomQuery(query);
   const { Method, MethodSection } = getModels();
   const sequelize = getCatalogSequelize();
   const { page, pageSize, limit, offset } = parsePagination(query);
 
+  const symptomPart = symptom ? symptomSqlFragment('m') : '';
   const rows = await sequelize.query(
     `
     SELECT m.id
@@ -124,11 +129,17 @@ export async function searchMethods(query) {
         coalesce(m.target_audience, '') || ' ' ||
         coalesce(m.short_instruction::text, '')
       ) @@ plainto_tsquery('simple', :q)
+      ${symptomPart}
     ORDER BY m.id ASC
     LIMIT :limit OFFSET :offset
     `,
     {
-      replacements: { q, limit, offset },
+      replacements: {
+        q,
+        limit,
+        offset,
+        ...(symptom ? { symptom: `%${symptom}%` } : {}),
+      },
       type: QueryTypes.SELECT,
     },
   );
@@ -142,6 +153,7 @@ export async function searchMethods(query) {
     where: { id: ids },
     include: [methodSectionBriefInclude(MethodSection)],
     order: [['id', 'ASC']],
+    ...catalogQueryOptions(),
   });
 
   return {
@@ -157,15 +169,24 @@ export async function getMethodSection(idOrDocumentId, query) {
   const where = resolveIdOrDocumentWhere(idOrDocumentId, onlyPublished({}));
   const include = withMethods ? [publishedMethodsInclude(Method)] : [];
 
-  const row = await MethodSection.findOne({ where, include });
+  const row = await MethodSection.findOne({
+    where,
+    include,
+    ...catalogQueryOptions(),
+  });
   if (!row) throw ApiError.notFound('Method section not found');
   return { data: formatMethodSection(row, withMethods), meta: {} };
 }
 
 export async function listMethods(query) {
+  const cacheId = cacheKey('methods-list', query);
+  const cached = await cacheGet(cacheId);
+  if (cached) return cached;
+
   const { Method, MethodSection } = getModels();
   const { page, pageSize, limit, offset } = parsePagination(query);
-  const where = parsePublishedWhere(query);
+  let where = parsePublishedWhere(query);
+  where = applySymptomFilter(where, query);
   const populate = parsePopulate(query);
   const withSection = wantsPopulate(populate, 'method_section');
 
@@ -178,9 +199,12 @@ export async function listMethods(query) {
     offset,
     order: [['id', 'ASC']],
     distinct: withSection,
+    ...catalogQueryOptions(),
   });
 
-  return { data: rows.map(formatMethod), meta: paginationMeta(page, pageSize, count) };
+  const result = { data: rows.map(formatMethod), meta: paginationMeta(page, pageSize, count) };
+  await cacheSet(cacheId, result, env.contentCacheTtlMs);
+  return result;
 }
 
 export async function getMethod(idOrDocumentId, query) {
@@ -190,7 +214,11 @@ export async function getMethod(idOrDocumentId, query) {
   const where = resolveIdOrDocumentWhere(idOrDocumentId, onlyPublished({}));
   const include = withSection ? [methodSectionBriefInclude(MethodSection)] : [];
 
-  const row = await Method.findOne({ where, include });
+  const row = await Method.findOne({
+    where,
+    include,
+    ...catalogQueryOptions(),
+  });
   if (!row) throw ApiError.notFound('Method not found');
   return { data: formatMethod(row), meta: {} };
 }

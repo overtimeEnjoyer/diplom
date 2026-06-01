@@ -16,6 +16,39 @@ describe('Thesis features', () => {
     expect(res.status).toBe(400);
   });
 
+  it('GET /api/methods accepts symptom filter', async () => {
+    const res = await request(app).get('/api/methods').query({ symptom: 'тест', 'pagination[pageSize]': 5 });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+  });
+
+  it('method favorites CRUD', async () => {
+    const list = await request(app).get('/api/methods').query({ 'pagination[pageSize]': 1 });
+    expect(list.status).toBe(200);
+    const methodId = list.body.data?.[0]?.id;
+    if (!methodId) return;
+
+    const empty = await request(app)
+      .get('/api/methods/favorites')
+      .set('Authorization', `Bearer ${jwt}`);
+    expect(empty.status).toBe(200);
+    expect(Array.isArray(empty.body.favoriteMethodIds)).toBe(true);
+
+    const added = await request(app)
+      .post('/api/methods/favorites')
+      .set('Authorization', `Bearer ${jwt}`)
+      .send({ methodId });
+    expect(added.status).toBe(200);
+    expect(added.body.favoriteMethodIds).toContain(methodId);
+
+    const toggled = await request(app)
+      .post('/api/methods/favorites/toggle')
+      .set('Authorization', `Bearer ${jwt}`)
+      .send({ methodId });
+    expect(toggled.status).toBe(200);
+    expect(toggled.body.favoriteMethodIds).not.toContain(methodId);
+  });
+
   it('GET /api/content/sections mirrors method-sections', async () => {
     const res = await request(app).get('/api/content/sections');
     expect(res.status).toBe(200);

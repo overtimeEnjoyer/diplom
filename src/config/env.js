@@ -45,8 +45,13 @@ export const env = {
   s3AccessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
   s3SecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
 
+  // Catalog cache: Redis (optional) or in-memory per instance
+  redisUrl: process.env.REDIS_URL || '',
+
   // Cache TTL for read-heavy catalog (ms)
   contentCacheTtlMs: Number(process.env.CONTENT_CACHE_TTL_MS || 60_000),
+
+  externalFetchTimeoutMs: Number(process.env.EXTERNAL_FETCH_TIMEOUT_MS || 15_000),
 
   // Rate limits
   authRateLimitWindowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 60_000),

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout.js';
 
 function sanitizePathSegment(segment) {
   return String(segment || '')
@@ -18,14 +19,13 @@ async function createSupabaseUploadUrl(objectPath, contentType) {
   const path = sanitizePathSegment(objectPath);
   const url = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/upload/sign/${supabaseStorageBucket}/${path}`;
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${supabaseServiceRoleKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ upsert: false }),
-    signal: AbortSignal.timeout(15_000),
   });
 
   if (!response.ok) {

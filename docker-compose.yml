@@ -17,5 +17,14 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: rok-m-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    profiles:
+      - cache
+
 volumes:
   rok_m_pgdata:

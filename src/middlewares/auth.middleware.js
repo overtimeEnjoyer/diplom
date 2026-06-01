@@ -13,27 +13,34 @@ async function loadUserById(userId) {
   return user;
 }
 
+async function resolveUserFromSupabaseToken(token) {
+  const claims = verifySupabaseAccessToken(token);
+  if (!claims) return null;
+
+  const { User, Role } = getModels();
+  const user = await User.findOne({
+    where: { supabaseUid: claims.sub },
+    include: [{ model: Role, as: 'role', attributes: ['id', 'name', 'type'] }],
+  });
+  if (!user || user.blocked) return null;
+  return user;
+}
+
 async function resolveUserFromRequest(req) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) throw ApiError.unauthorized();
 
+  if (isSupabaseAuthEnabled()) {
+    const supabaseUser = await resolveUserFromSupabaseToken(token);
+    if (supabaseUser) return supabaseUser;
+  }
+
   try {
     const payload = verifyJwt(token);
     return loadUserById(payload.id);
   } catch {
-    if (!isSupabaseAuthEnabled()) throw ApiError.unauthorized();
-
-    const claims = verifySupabaseAccessToken(token);
-    if (!claims) throw ApiError.unauthorized();
-
-    const { User, Role } = getModels();
-    const user = await User.findOne({
-      where: { supabaseUid: claims.sub },
-      include: [{ model: Role, as: 'role', attributes: ['id', 'name', 'type'] }],
-    });
-    if (!user || user.blocked) throw ApiError.unauthorized();
-    return user;
+    throw ApiError.unauthorized();
   }
 }
 
