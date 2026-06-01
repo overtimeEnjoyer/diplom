@@ -97,22 +97,43 @@ jobs:
             echo "::error::Could not parse deployment URL from Vercel output"
             exit 1
           fi
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Deployed to $url"
+          echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
+
+          smoke_url="$(trim "${PRODUCTION_URL:-}")"
+          if [ -z "$smoke_url" ]; then
+            smoke_url="$url"
+          fi
+          echo "url=$smoke_url" >> "$GITHUB_OUTPUT"
+          echo "Deployed: $url"
+          echo "Smoke test URL: $smoke_url"
+          if echo "$url" | grep -q '\-projects\.vercel\.app'; then
+            if echo "$smoke_url" | grep -q '\-projects\.vercel\.app'; then
+              if [ -z "$(trim "${VERCEL_AUTOMATION_BYPASS_SECRET:-}")" ]; then
+                echo "::warning::Deployment URL is behind Vercel SSO. Set GitHub secret PRODUCTION_URL to your public alias (Vercel → Domains),"
+                echo "or VERCEL_AUTOMATION_BYPASS_SECRET (Vercel → Deployment Protection → Protection Bypass for Automation)."
+              fi
+            fi
+          fi
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
       - name: Smoke test /health
         run: |
           url="${{ steps.deploy.outputs.url }}"
-          echo "Checking $url/health"
+          deployment_url="${{ steps.deploy.outputs.deployment_url }}"
+          echo "Checking $url/health (deployment: $deployment_url)"
+
+          trim() { printf '%s' "$1" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
+          bypass="$(trim "${VERCEL_AUTOMATION_BYPASS_SECRET:-}")"
 
           curl_args=(-fsS)
-          if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
+          if [ -n "$bypass" ]; then
             curl_args+=(
-              -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}"
+              -H "x-vercel-protection-bypass: ${bypass}"
               -H "x-vercel-set-bypass-cookie: true"
             )
             echo "Using Vercel automation protection bypass"
@@ -120,9 +141,15 @@ jobs:
 
           http_code=$(curl "${curl_args[@]}" -o /tmp/health.json -w "%{http_code}" "$url/health" || true)
           if [ "$http_code" = "401" ]; then
-            echo "::error::HTTP 401 — Vercel Deployment Protection (SSO), not the API."
-            echo "Fix: Vercel → Project → Settings → Deployment Protection → disable for Production,"
-            echo "or enable 'Protection Bypass for Automation' and add secret VERCEL_AUTOMATION_BYPASS_SECRET to GitHub."
+            echo "::error::HTTP 401 — Vercel Deployment Protection blocks curl (not your Express API)."
+            echo ""
+            echo "Do ONE of these (then re-run CD):"
+            echo "  A) Vercel → diplom → Settings → Deployment Protection"
+            echo "     → turn OFF 'Vercel Authentication' for Production (or for All)."
+            echo "  B) Same page → Protection Bypass for Automation → copy secret"
+            echo "     → GitHub → Secrets → VERCEL_AUTOMATION_BYPASS_SECRET"
+            echo "  C) Vercel → Domains → copy production URL (e.g. https://diplom-xxxx.vercel.app)"
+            echo "     → GitHub → Secrets → PRODUCTION_URL (without SSO)"
             exit 1
           fi
           if [ "$http_code" != "200" ]; then
