@@ -85,7 +85,14 @@ jobs:
           export VERCEL_ORG_ID="$(trim "$VERCEL_ORG_ID")"
           export VERCEL_PROJECT_ID="$(trim "$VERCEL_PROJECT_ID")"
           pnpm dlx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" | tee deploy.log
-          url=$(grep -Eo 'https://[^ ]+\.vercel\.app' deploy.log | tail -1)
+          # Prefer stable Production alias (not *-team-projects.vercel.app deployment URL — often SSO-protected).
+          url=$(grep -i 'Production:' deploy.log | grep -Eo 'https://[^ ]+' | head -1 || true)
+          if [ -z "$url" ]; then
+            url=$(grep -Eo 'https://[^ ]+\.vercel\.app' deploy.log | grep -v -- '-projects\.vercel\.app' | tail -1 || true)
+          fi
+          if [ -z "$url" ]; then
+            url=$(grep -Eo 'https://[^ ]+\.vercel\.app' deploy.log | tail -1)
+          fi
           if [ -z "$url" ]; then
             echo "::error::Could not parse deployment URL from Vercel output"
             exit 1
@@ -101,8 +108,36 @@ jobs:
         run: |
           url="${{ steps.deploy.outputs.url }}"
           echo "Checking $url/health"
-          curl -fsS "$url/health"
-          curl -fsS "$url/health/db" || {
-            echo "::warning::/health/db failed — check DATABASE_URL in Vercel Production env vars"
+
+          curl_args=(-fsS)
+          if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
+            curl_args+=(
+              -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}"
+              -H "x-vercel-set-bypass-cookie: true"
+            )
+            echo "Using Vercel automation protection bypass"
+          fi
+
+          http_code=$(curl "${curl_args[@]}" -o /tmp/health.json -w "%{http_code}" "$url/health" || true)
+          if [ "$http_code" = "401" ]; then
+            echo "::error::HTTP 401 — Vercel Deployment Protection (SSO), not the API."
+            echo "Fix: Vercel → Project → Settings → Deployment Protection → disable for Production,"
+            echo "or enable 'Protection Bypass for Automation' and add secret VERCEL_AUTOMATION_BYPASS_SECRET to GitHub."
             exit 1
-          }
+          fi
+          if [ "$http_code" != "200" ]; then
+            echo "::error::/health returned HTTP $http_code"
+            cat /tmp/health.json 2>/dev/null || true
+            exit 1
+          fi
+          cat /tmp/health.json
+
+          http_db=$(curl "${curl_args[@]}" -o /tmp/health-db.json -w "%{http_code}" "$url/health/db" || true)
+          if [ "$http_db" != "200" ]; then
+            echo "::warning::/health/db returned HTTP $http_db — check DATABASE_URL in Vercel Production env vars"
+            cat /tmp/health-db.json 2>/dev/null || true
+            exit 1
+          fi
+          cat /tmp/health-db.json
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
