@@ -37,6 +37,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate deployment secrets
+        run: |
+          missing=0
+          for name in DATABASE_URL VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Add secrets under Settings → Secrets → Actions (or Environment production)."
+            exit 1
+          fi
+          if echo "$DATABASE_URL" | grep -Eq 'localhost|127\.0\.0\.1'; then
+            echo "::error::DATABASE_URL must be a cloud PostgreSQL URL (Neon/Supabase), not localhost."
+            exit 1
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
       - name: Run database migrations
         run: pnpm db:migrate
         env:
@@ -46,8 +69,15 @@ jobs:
       - name: Deploy to Vercel (production)
         id: deploy
         run: |
-          url=$(pnpm dlx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN")
+          set -euo pipefail
+          pnpm dlx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" | tee deploy.log
+          url=$(grep -Eo 'https://[^ ]+\.vercel\.app' deploy.log | tail -1)
+          if [ -z "$url" ]; then
+            echo "::error::Could not parse deployment URL from Vercel output"
+            exit 1
+          fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed to $url"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -58,4 +88,7 @@ jobs:
           url="${{ steps.deploy.outputs.url }}"
           echo "Checking $url/health"
           curl -fsS "$url/health"
-          curl -fsS "$url/health/db"
+          curl -fsS "$url/health/db" || {
+            echo "::warning::/health/db failed — check DATABASE_URL in Vercel Production env vars"
+            exit 1
+          }
